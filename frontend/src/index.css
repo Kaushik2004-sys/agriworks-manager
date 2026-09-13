@@ -15,8 +15,20 @@ body {
   }
 }
 
+/* Global typography: clean, modern, highly readable system stack.
+   Inter is used when installed on the device; otherwise the OS-native
+   fallback keeps text sharp with no external font download/dependency. */
 body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   background-color: #f8f9fa;
+}
+
+/* Dark theme page background (Bootstrap dark palette).
+   Needed because the light rule above overrides Bootstrap's
+   body background variable; all other components adapt
+   automatically via `data-bs-theme="dark"`. */
+[data-bs-theme="dark"] body {
+  background-color: #212529;
 }
 
 /* Footer stays at the bottom of short pages without overlapping content

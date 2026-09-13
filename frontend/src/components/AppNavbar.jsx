@@ -5,12 +5,25 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function AppNavbar() {
   const { user, logout } = useAuth();
   const { t, lang, setLang, LANGUAGES } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  // Main authenticated navigation links (Profile stays separate below).
+  const NAV_LINKS = [
+    { to: '/', label: 'Home' },
+    { to: '/farmers', label: 'Farmers' },
+    { to: '/works', label: 'Work' },
+    { to: '/bills', label: 'Bills' },
+    { to: '/payments', label: 'Payments' },
+    { to: '/expenses', label: 'Expenses' },
+    { to: '/reports', label: 'Reports' },
+  ];
 
   function close() {
     setOpen(false);
@@ -23,7 +36,7 @@ export default function AppNavbar() {
   }
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3">
+    <nav className="navbar navbar-expand-lg navbar-dark bg-success mb-3 sticky-top d-print-none">
       <div className="container">
         <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/" onClick={close}>
           <img src="/logo.png" alt="AgriWorks logo" className="navbar-logo" />
@@ -32,7 +45,7 @@ export default function AppNavbar() {
         <button
           className="navbar-toggler"
           type="button"
-          aria-label="Toggle navigation"
+          aria-label={t('Toggle navigation')}
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
         >
@@ -40,23 +53,35 @@ export default function AppNavbar() {
         </button>
         <div className={`collapse navbar-collapse${open ? ' show' : ''}`}>
           {user && (
-            <div className="navbar-nav me-auto">
-              <Link className="nav-link" to="/" onClick={close}>{t('Home')}</Link>
-              <Link className="nav-link" to="/farmers" onClick={close}>{t('Farmers')}</Link>
-              <Link className="nav-link" to="/works" onClick={close}>{t('Work')}</Link>
-              <Link className="nav-link" to="/bills" onClick={close}>{t('Bills')}</Link>
-              <Link className="nav-link" to="/payments" onClick={close}>{t('Payments')}</Link>
-              <Link className="nav-link" to="/expenses" onClick={close}>{t('Expenses')}</Link>
-              <Link className="nav-link" to="/reports" onClick={close}>{t('Reports')}</Link>
+            <div className="navbar-nav me-auto align-items-lg-center">
+              {NAV_LINKS.map((l, i) => (
+                <span key={l.to} className="d-flex align-items-center">
+                  {i > 0 && (
+                    <span className="d-none d-lg-inline text-white-50 px-1" aria-hidden="true">
+                      |
+                    </span>
+                  )}
+                  <Link className="nav-link" to={l.to} onClick={close}>{t(l.label)}</Link>
+                </span>
+              ))}
             </div>
           )}
           <div className="navbar-nav ms-auto align-items-lg-center">
+            <button
+              type="button"
+              className="btn btn-outline-light btn-sm my-2 my-lg-0 me-lg-2"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
+              title={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
+            >
+              <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            </button>
             <select
               className="form-select form-select-sm my-2 my-lg-0 me-lg-2"
               style={{ width: 'auto' }}
               value={lang}
               onChange={(e) => setLang(e.target.value)}
-              aria-label="Language"
+              aria-label={t('Language')}
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>{l.label}</option>

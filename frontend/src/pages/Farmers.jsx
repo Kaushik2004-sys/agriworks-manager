@@ -1,6 +1,7 @@
 // Phase 3: Farmer Management page.
 // Features: view table, search, add, update, delete + validation.
 import { useEffect, useState } from 'react';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createFarmer, deleteFarmer, listFarmers, updateFarmer } from '../services/farmers';
 
@@ -119,6 +120,8 @@ export default function Farmers() {
 
   return (
     <div className="container py-4">
+      <BackButton to="/" label="Back to Home" />
+      <BackButton to="/" nextTo="/works" />
       <h2 className="fw-bold">{t('Farmer Management')}</h2>
       <p className="text-muted">{t('Phase 3 – Add, view, search, update, delete farmers.')}</p>
 

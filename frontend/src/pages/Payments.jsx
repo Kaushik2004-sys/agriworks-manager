@@ -2,6 +2,7 @@
 // Record full/partial payments per bill, track pending, update status, view history.
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
 import { PAYMENT_METHODS, createPayment, deletePayment, listPayments, updatePayment } from '../services/payments';
@@ -164,6 +165,8 @@ export default function Payments() {
 
   return (
     <div className="container py-4">
+      <BackButton to="/" label="Back to Home" />
+      <BackButton to="/bills" nextTo="/expenses" />
       <h2 className="fw-bold">{t('Payment Management')}</h2>
       <p className="text-muted">{t('Phase 6 – Full, partial and pending payments per bill.')}</p>
 

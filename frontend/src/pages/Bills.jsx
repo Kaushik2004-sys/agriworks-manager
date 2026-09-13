@@ -3,6 +3,7 @@
 // Phase 6: Pay button links to Payments page for that bill.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createBill, deleteBill, listBills, listUnbilledWorks, updateBill } from '../services/bills';
 import { listWorks } from '../services/works';
@@ -170,6 +171,8 @@ export default function Bills() {
 
   return (
     <div className="container py-4">
+      <BackButton to="/" label="Back to Home" />
+      <BackButton to="/works" nextTo="/payments" />
       <h2 className="fw-bold">{t('Billing Management')}</h2>
       <p className="text-muted">{t('Phase 5 – Generate bills from work records.')}</p>
 

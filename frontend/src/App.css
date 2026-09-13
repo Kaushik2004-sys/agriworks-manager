@@ -17,11 +17,128 @@
 }
 
 /* Footer logo: same asset as the navbar, centered and moderate in size
-   so the footer stays compact; scales down on small screens. */
+   so the footer stays compact; scales down on small screens.
+   Height-driven sizing keeps original proportions (no distortion);
+   max-width prevents overflow on narrow screens. */
 .footer-logo {
-  height: clamp(40px, 8vw, 60px);
+  height: clamp(52px, 10vw, 84px);
   width: auto;
   max-width: 100%;
   object-fit: contain;
   border-radius: 8px;
+}
+
+/* Dashboard stat cards: subtle hover feedback only.
+   The stretched-link destination is unchanged; the whole card
+   just feels clickable with a pointer cursor and soft shadow. */
+.stat-card {
+  transition: box-shadow 0.15s ease-in-out;
+}
+.stat-card:hover {
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+/* Reports print output only — screen UI is unchanged (all rules scoped
+   inside @media print; screen uses d-print-none / d-print-block utilities).
+   A4 landscape fits wide agricultural tables without shrinking text. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  /* Clean white page with dark text in both Light and Dark screen themes. */
+  body,
+  [data-bs-theme="dark"] body {
+    background-color: #fff !important;
+    color: #212529 !important;
+    font-size: 11pt;
+  }
+
+  /* Force report surfaces to light readable colors in Dark screen theme. */
+  [data-bs-theme="dark"] .card,
+  [data-bs-theme="dark"] .table,
+  [data-bs-theme="dark"] .alert {
+    background-color: #fff !important;
+    color: #212529 !important;
+    border-color: #adb5bd !important;
+  }
+
+  [data-bs-theme="dark"] .text-muted {
+    color: #495057 !important;
+  }
+
+  [data-bs-theme="dark"] thead.table-success,
+  [data-bs-theme="dark"] thead.table-success th {
+    background-color: #d1e7dd !important;
+    color: #000 !important;
+  }
+
+  /* Remove screen-only vertical breathing room so small reports
+     fit on one A4 page instead of spilling a near-blank second page. */
+  .reports-print-page {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Let print flow naturally: the full-viewport flex shell
+     (min-height: 100vh) would otherwise force body height past
+     one A4 page on short reports, creating a blank second page.
+     Large reports still flow across as many pages as needed. */
+  #root {
+    min-height: auto !important;
+    display: block !important;
+  }
+
+  .report-print-footer {
+    margin-top: 4px !important;
+  }
+
+  /* Tighten print-only vertical rhythm so the footer stays with
+     the table on one A4 page (screen spacing is untouched). */
+  .report-print-header {
+    margin-bottom: 8px !important;
+  }
+
+  .reports-print-page .card.mb-3 {
+    margin-bottom: 8px !important;
+  }
+
+  /* Small professional logo in the print header (not the footer logo). */
+  .report-print-logo {
+    height: 48px;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .report-print-header hr {
+    border-top: 2px solid #000;
+    opacity: 1;
+  }
+
+  /* Report table: full width, readable, B&W-friendly borders.
+     Header repeats on every page; rows avoid awkward splits. */
+  .report-print-table {
+    overflow: visible !important;
+  }
+
+  .report-print-table .table {
+    width: 100%;
+    font-size: 10pt;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .report-print-table thead {
+    display: table-header-group;
+  }
+
+  .report-print-table tr {
+    break-inside: avoid;
+  }
+
+  .report-print-table th,
+  .report-print-table td {
+    border: 1px solid #495057 !important;
+    padding: 4px 6px;
+  }
 }

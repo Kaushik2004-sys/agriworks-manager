@@ -15,10 +15,19 @@ const LINKS = [
   { to: '/reports', label: 'Reports' },
 ];
 
+const INFO_LINKS = [
+  { to: '/about', label: 'About AgriWorks' },
+  { to: '/help-support', label: 'Help & Support' },
+  { to: '/faq', label: 'FAQ' },
+  { to: '/privacy', label: 'Privacy Policy' },
+  { to: '/terms', label: 'Terms & Conditions' },
+  { to: '/disclaimer', label: 'Disclaimer' },
+];
+
 export default function Footer() {
   const { t } = useLanguage();
   return (
-    <footer className="bg-success text-white mt-auto">
+    <footer className="bg-success text-white mt-auto d-print-none">
       <div className="container py-4">
         <div className="text-center mb-3">
           <img src="/logo.png" alt="AgriWorks logo" className="footer-logo" />
@@ -35,6 +44,20 @@ export default function Footer() {
                 <Link key={l.to} className="text-white text-decoration-none small" to={l.to}>
                   {t(l.label)}
                 </Link>
+              ))}
+            </div>
+            <div className="d-flex flex-wrap justify-content-md-end mt-2">
+              {INFO_LINKS.map((l, i) => (
+                <span key={l.to} className="text-nowrap">
+                  {i > 0 && (
+                    <span className="text-white-50 mx-2" aria-hidden="true">
+                      |
+                    </span>
+                  )}
+                  <Link className="text-white text-decoration-none small" to={l.to}>
+                    {t(l.label)}
+                  </Link>
+                </span>
               ))}
             </div>
           </div>

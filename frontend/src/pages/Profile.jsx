@@ -2,6 +2,7 @@
 // Email is read-only. Consistent Bootstrap styling, mobile responsive.
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PASSWORD_HINT, passwordError } from '../utils/validatePassword';
 
@@ -119,6 +120,7 @@ export default function Profile() {
 
   return (
     <div className="container py-4" style={{ maxWidth: 640 }}>
+      <BackButton to="/" />
       <h2 className="fw-bold">{t('Profile')}</h2>
       <p className="text-muted">{t('View and manage your account information.')}</p>
 

@@ -1,6 +1,7 @@
 // Phase 9: Report Generation page.
 // 6 reports from actual DB records with filters, print and CSV export.
 import { useEffect, useState } from 'react';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { REPORT_TYPES, getReport } from '../services/reports';
@@ -90,17 +91,60 @@ export default function Reports() {
   const label = t(REPORT_TYPES.find((r) => r.value === type)?.label || type);
   const records = data?.records || [];
   const columns = records.length > 0 ? Object.keys(records[0]) : [];
+  // Print header meta: only filters that actually have values are shown.
+  // Database values (farmer name, dates, search) stay untranslated;
+  // UI enum values reuse t() exactly like the on-screen report.
+  const farmerName = farmers.find((f) => String(f.id) === String(filters.farmer))?.name || '';
+  const appliedFilters = [
+    farmerName ? { label: t('Farmer'), value: farmerName } : null,
+    filters.from ? { label: t('From date'), value: filters.from } : null,
+    filters.to ? { label: t('To date'), value: filters.to } : null,
+    filters.work_type ? { label: t('Work Type'), value: t(filters.work_type) } : null,
+    filters.expense_type ? { label: t('Expense Type'), value: t(filters.expense_type) } : null,
+    filters.method ? { label: t('Method'), value: t(filters.method) } : null,
+    filters.status ? { label: t('Status'), value: t(filters.status) } : null,
+    filters.search ? { label: t('Search'), value: filters.search } : null,
+  ].filter(Boolean);
   // Defensive defaults: an incomplete summary must show dashes, never crash.
   const summary = data?.summary || {};
   const byWorkType = summary.by_work_type || [];
   const byExpenseType = summary.by_expense_type || [];
 
   return (
-    <div className="container py-4">
-      <h2 className="fw-bold">{t('Reports')}</h2>
-      <p className="text-muted">{t('Phase 9 – Organized reports from actual records.')}</p>
+    <div className="container py-4 reports-print-page">
+      <div className="d-print-none">
+        <BackButton to="/" label="Back to Home" />
+        <BackButton to="/expenses" nextTo="/profile" />
+      </div>
 
-      <div className="row g-2 mb-3">
+      {/* Print-only report header (screen shows the h2 + cards below). */}
+      <div className="d-none d-print-block report-print-header mb-3">
+        <div className="d-flex align-items-center gap-2">
+          <img src="/logo.png" alt="AgriWorks logo" className="report-print-logo" />
+          <div>
+            <h4 className="mb-0 fw-bold">AgriWorks Manager</h4>
+            <div className="small">{t('Smart Farm Work & Irrigation Management System')}</div>
+          </div>
+        </div>
+        <hr />
+        <h5 className="fw-bold">{t('Agricultural Report')} — {label}</h5>
+        <div className="small">
+          <span className="me-3">{t('Report Type')}: {label}</span>
+          <span>{t('Generated on')}: {new Date().toLocaleDateString()}</span>
+        </div>
+        {appliedFilters.length > 0 && (
+          <div className="small mt-1">
+            {appliedFilters.map((f, i) => (
+              <span key={i} className="me-3">{f.label}: <b>{f.value}</b></span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <h2 className="fw-bold d-print-none">{t('Reports')}</h2>
+      <p className="text-muted d-print-none">{t('Phase 9 – Organized reports from actual records.')}</p>
+
+      <div className="row g-2 mb-3 d-print-none">
         {REPORT_TYPES.map((r) => (
           <div key={r.value} className="col-6 col-md-4 col-lg-2">
             <button
@@ -113,7 +157,7 @@ export default function Reports() {
         ))}
       </div>
 
-      <form className="card mb-3" onSubmit={handleFilter}>
+      <form className="card mb-3 d-print-none" onSubmit={handleFilter}>
         <div className="card-body">
           <div className="row g-2">
             <div className="col-12 col-md-3">
@@ -189,8 +233,8 @@ export default function Reports() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
-      {loading && <p className="text-muted">{t('Loading')} {label}...</p>}
+      {error && <div className="alert alert-danger d-print-none">{t(error)}</div>}
+      {loading && <p className="text-muted d-print-none">{t('Loading')} {label}...</p>}
 
       {!loading && data && (
         <>
@@ -224,7 +268,7 @@ export default function Reports() {
             records.length === 0 ? (
               <div className="alert alert-info">{t('No records for this report with current filters.')}</div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive report-print-table">
                 <table className="table table-striped table-bordered">
                   <thead className="table-success">
                     <tr>{columns.map((c) => <th key={c}>{t(COLUMN_LABELS[c] || c)}</th>)}</tr>
@@ -238,6 +282,11 @@ export default function Reports() {
               </div>
             )
           )}
+
+          {/* Print-only footer (the large green website footer is hidden in print). */}
+          <div className="d-none d-print-block text-center small mt-3 report-print-footer">
+            AgriWorks Manager — {t('Smart Farm Work & Irrigation Management System')}
+          </div>
         </>
       )}
     </div>

@@ -1,6 +1,7 @@
 // Phase 7: Expense Management page.
 // Diesel, Maintenance, Driver Wages, Other with amount/date/description.
 import { useEffect, useState } from 'react';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses, updateExpense } from '../services/expenses';
 
@@ -122,6 +123,8 @@ export default function Expenses() {
 
   return (
     <div className="container py-4">
+      <BackButton to="/" label="Back to Home" />
+      <BackButton to="/payments" nextTo="/reports" />
       <h2 className="fw-bold">{t('Expense Management')}</h2>
       <p className="text-muted">{t('Phase 7 – Diesel, maintenance, wages and other expenses.')}</p>
 

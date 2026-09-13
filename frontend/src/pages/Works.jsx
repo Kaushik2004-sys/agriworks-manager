@@ -1,6 +1,7 @@
 // Phase 4: Agricultural Work Management page.
 // Every work record is linked to a farmer (Farmer -> Work).
 import { useEffect, useState } from 'react';
+import BackButton from '../components/BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { WORK_TYPES, createWork, deleteWork, listWorks, updateWork } from '../services/works';
@@ -146,6 +147,8 @@ export default function Works() {
 
   return (
     <div className="container py-4">
+      <BackButton to="/" label="Back to Home" />
+      <BackButton to="/farmers" nextTo="/bills" />
       <h2 className="fw-bold">{t('Agricultural Work')}</h2>
       <p className="text-muted">{t('Phase 4 – Work records linked to farmers.')}</p>
 
