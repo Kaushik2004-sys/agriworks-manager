@@ -1,0 +1,166 @@
+// Auth update: Create Account page.
+// Fields: Full Name (required), Company/Business Name (optional),
+// Email (required, unique, valid), Mobile (10 digits),
+// Password + Confirm Password (must match, hashed by Django backend).
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../i18n/LanguageContext';
+import { INVALID_EMAIL_MESSAGE, isValidEmail } from '../utils/validateEmail';
+import { PASSWORD_HINT, passwordError } from '../utils/validatePassword';
+
+const emptyForm = {
+  full_name: '',
+  company_name: '',
+  email: '',
+  mobile: '',
+  password: '',
+  confirm_password: '',
+};
+
+export default function Signup() {
+  const { register } = useAuth();
+  const { t } = useLanguage();
+  const navigate = useNavigate();
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function set(key, value) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function validate() {
+    if (!form.full_name.trim()) return 'Full Name is required.';
+    if (!form.email.trim()) return 'Email is required.';
+    if (!isValidEmail(form.email)) {
+      return INVALID_EMAIL_MESSAGE;
+    }
+    if (!/^\d{10}$/.test(form.mobile.trim())) {
+      return 'Mobile Number must be 10 digits.';
+    }
+    if (!form.password) return 'Password is required.';
+    const pwErr = passwordError(form.password);
+    if (pwErr) return pwErr;
+    if (form.password !== form.confirm_password) return 'Passwords do not match.';
+    return '';
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    const localError = validate();
+    if (localError) {
+      setError(localError);
+      return;
+    }
+    setBusy(true);
+    try {
+      await register({
+        full_name: form.full_name.trim(),
+        company_name: form.company_name.trim(), // optional - may be empty
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        password: form.password,
+        confirm_password: form.confirm_password,
+      });
+      navigate('/');
+    } catch (err) {
+      const data = err.response?.data;
+      if (data && typeof data === 'object') {
+        const firstKey = Object.keys(data)[0];
+        const val = data[firstKey];
+        const firstMsg = Array.isArray(val) ? val[0] : String(val);
+        setError(firstKey === 'non_field_errors' ? firstMsg : `${firstKey}: ${firstMsg}`);
+      } else {
+        setError('Registration failed. Check backend connection.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="container py-4" style={{ maxWidth: 520 }}>
+      <h2 className="fw-bold mb-1">{t('Create Account')}</h2>
+      <p className="text-muted">{t('Join AgriWorks Manager')}</p>
+
+      {error && <div className="alert alert-danger">{t(error)}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <label className="form-label">{t('Full Name *')}</label>
+          <input
+            className="form-control"
+            value={form.full_name}
+            onChange={(e) => set('full_name', e.target.value)}
+            autoComplete="name"
+          />
+        </div>
+        <div className="mb-3">
+          <label className="form-label">{t('Company / Business Name')} <span className="text-muted">{t('(optional)')}</span></label>
+          <input
+            className="form-control"
+            value={form.company_name}
+            onChange={(e) => set('company_name', e.target.value)}
+            placeholder={t('Leave blank if none')}
+            autoComplete="organization"
+          />
+        </div>
+        <div className="row g-2">
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Email *')}</label>
+            <input
+              type="email"
+              className="form-control"
+              value={form.email}
+              onChange={(e) => set('email', e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Mobile Number *')}</label>
+            <input
+              className="form-control"
+              value={form.mobile}
+              onChange={(e) => set('mobile', e.target.value)}
+              maxLength={10}
+              inputMode="numeric"
+              autoComplete="tel"
+            />
+          </div>
+        </div>
+        <div className="row g-2">
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Password *')}</label>
+            <input
+              type="password"
+              className="form-control"
+              value={form.password}
+              onChange={(e) => set('password', e.target.value)}
+              autoComplete="new-password"
+            />
+            <div className="form-text">{t(PASSWORD_HINT)}</div>
+          </div>
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Confirm Password *')}</label>
+            <input
+              type="password"
+              className="form-control"
+              value={form.confirm_password}
+              onChange={(e) => set('confirm_password', e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+        <button className="btn btn-success w-100" disabled={busy} type="submit">
+          {busy ? t('Creating account...') : t('Create Account')}
+        </button>
+      </form>
+
+      <p className="text-center mt-3 mb-0">
+        {t('Already have an account? ')}<Link to="/login">{t('Login')}</Link>
+      </p>
+    </div>
+  );
+}

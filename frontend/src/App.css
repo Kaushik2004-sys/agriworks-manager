@@ -1,0 +1,27 @@
+/* Phase 1 minimal styles */
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Navbar logo: height-driven sizing keeps original proportions
+   (no distortion); clamp() scales it across mobile and desktop. */
+.navbar-logo {
+  height: clamp(28px, 4vw, 38px);
+  width: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* Footer logo: same asset as the navbar, centered and moderate in size
+   so the footer stays compact; scales down on small screens. */
+.footer-logo {
+  height: clamp(40px, 8vw, 60px);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}

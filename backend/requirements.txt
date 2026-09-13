@@ -1,0 +1,11 @@
+Django>=5.0
+djangorestframework>=3.15
+django-cors-headers>=4.3
+# MySQL drivers are NOT required (project database is SQLite).
+# Uncomment only if you switch DB_ENGINE=mysql in .env:
+# mysqlclient>=2.2
+# PyMySQL>=1.1
+python-dotenv>=1.0
+# Production server (Render). SQLite stays the database.
+gunicorn>=22.0
+whitenoise>=6.0

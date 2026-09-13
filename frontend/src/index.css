@@ -1,0 +1,35 @@
+/* Simple custom styles. Bootstrap handles most UI. */
+
+/* Responsive guard: never allow page-level horizontal scrolling from
+   overflowing children; tables keep their own inner scroll via
+   .table-responsive instead of breaking the page layout. */
+html,
+body {
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+body {
+  background-color: #f8f9fa;
+}
+
+/* Footer stays at the bottom of short pages without overlapping content
+   (in-flow flex layout + mt-auto on the footer, not fixed positioning). */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Long values (emails, links) wrap instead of pushing the layout wider. */
+.card-body,
+td,
+th {
+  overflow-wrap: anywhere;
+}

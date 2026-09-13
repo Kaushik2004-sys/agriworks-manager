@@ -1,0 +1,415 @@
+# Phase 1 health-check + Phase 2 user authentication views.
+# Kept simple for B.Sc. IT student: Token Authentication.
+
+from datetime import datetime
+from decimal import Decimal
+from django.contrib.auth import authenticate
+from django.db import connection
+from django.db.models import Count, Sum
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """Return backend status. React frontend calls this to verify connection."""
+    # Check database connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        db_status = 'connected'
+    except Exception as exc:
+        db_status = f'error: {exc}'
+
+    return Response({
+        'project': 'AgriWorks Manager',
+        'phase': 2,
+        'backend': 'Django + DRF running',
+        'database': db_status,
+        'message': 'Frontend communicates with backend successfully',
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    """Validate credentials and return auth token.
+
+    Auth update: accepts Email OR Username in the `username` (or `email`)
+    field. Existing username logins keep working unchanged.
+    """
+    identifier = ((request.data.get('username')
+                   or request.data.get('email') or '').strip())
+    password = request.data.get('password') or ''
+
+    # Simple validation: both fields required
+    if not identifier or not password:
+        return Response(
+            {'error': 'Email and password are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    username = identifier
+    if '@' in identifier:
+        # Email login: resolve to the account username first.
+        try:
+            from django.contrib.auth.models import User
+            username = User.objects.get(
+                email__iexact=identifier.lower()).username
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Invalid email or password.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    user = authenticate(username=username, password=password)
+    if user is None:
+        return Response(
+            {'error': 'Invalid email or password.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    token, _ = Token.objects.get_or_create(user=user)
+    return Response({
+        'token': token.key,
+        'username': user.username,
+        'email': user.email,
+        'message': 'Login successful.',
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout_view(request):
+    """Delete current token so it cannot be reused."""
+    # request.auth is the Token object when TokenAuthentication is used
+    if request.auth:
+        request.auth.delete()
+    return Response({'message': 'Logout successful.'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me_view(request):
+    """Return current logged-in user. Used to verify token + protect routes.
+
+    Auth update: also returns email + profile (full_name, company_name,
+    mobile) so Dashboard/Bills/Reports can reuse the business info.
+    Legacy accounts without a profile get empty profile fields.
+    """
+    from accounts.views import profile_dict
+    return Response({
+        'username': request.user.username,
+        'email': request.user.email,
+        'is_staff': request.user.is_staff,
+        'profile': profile_dict(request.user),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_view(request):
+    """Phase 8: summary from actual DB records (no duplicates).
+
+    Returns totals + recent work/payments/expenses for the logged-in user.
+    Pending = Total billed - Total received.
+    """
+    from billing.models import Bill
+    from expenses.models import Expense
+    from payments.models import Payment
+    from works.models import Work
+    from farmers.models import Farmer
+    from accounts.views import profile_dict
+
+    user = request.user
+
+    total_works = Work.objects.filter(user=user).count()
+    total_farmers = Farmer.objects.filter(user=user).count()
+    total_bills = Bill.objects.filter(user=user).count()
+
+    total_income = Bill.objects.filter(user=user).aggregate(
+        total=Sum('total_amount'))['total'] or 0
+    total_received = Payment.objects.filter(user=user).aggregate(
+        total=Sum('amount'))['total'] or 0
+    pending = total_income - total_received
+    total_expenses = Expense.objects.filter(user=user).aggregate(
+        total=Sum('amount'))['total'] or 0
+
+    recent_works = Work.objects.select_related('farmer').filter(
+        user=user).order_by('-work_date', '-id')[:5]
+    recent_payments = Payment.objects.select_related(
+        'bill', 'bill__farmer').filter(user=user).order_by('-payment_date', '-id')[:5]
+    recent_expenses = Expense.objects.filter(
+        user=user).order_by('-date', '-id')[:5]
+
+    return Response({
+        'business': profile_dict(user),
+        'totals': {
+            'farmers': total_farmers,
+            'works': total_works,
+            'bills': total_bills,
+            'income': str(total_income),
+            'received': str(total_received),
+            'pending': str(pending),
+            'expenses': str(total_expenses),
+        },
+        'recent_works': [
+            {
+                'id': w.id,
+                'farmer_name': w.farmer.name,
+                'work_type': w.work_type,
+                'work_date': str(w.work_date),
+                'amount': str(w.amount),
+            }
+            for w in recent_works
+        ],
+        'recent_payments': [
+            {
+                'id': p.id,
+                'farmer_name': p.bill.farmer.name,
+                'bill_id': p.bill_id,
+                'payment_date': str(p.payment_date),
+                'method': p.method,
+                'amount': str(p.amount),
+            }
+            for p in recent_payments
+        ],
+        'recent_expenses': [
+            {
+                'id': e.id,
+                'expense_type': e.expense_type,
+                'date': str(e.date),
+                'amount': str(e.amount),
+            }
+            for e in recent_expenses
+        ],
+    })
+
+
+def _parse_date(value):
+    """Parse YYYY-MM-DD or return None (for report filters)."""
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except Exception:
+        return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def reports_view(request):
+    """Phase 9: 6 reports from actual DB records with filters.
+
+    Query params:
+      type: work | billing | payment | pending | expense | performance
+      farmer: farmer id, status: bill status, work_type, expense_type, method
+      from: YYYY-MM-DD, to: YYYY-MM-DD, search: text
+    """
+    from billing.models import Bill
+    from expenses.models import Expense
+    from payments.models import Payment
+    from works.models import Work
+
+    user = request.user
+    rtype = (request.query_params.get('type') or 'work').strip()
+    farmer_id = (request.query_params.get('farmer') or '').strip()
+    status_f = (request.query_params.get('status') or '').strip()
+    work_type = (request.query_params.get('work_type') or '').strip()
+    expense_type = (request.query_params.get('expense_type') or '').strip()
+    method = (request.query_params.get('method') or '').strip()
+    search = (request.query_params.get('search') or '').strip()
+    date_from = _parse_date(request.query_params.get('from') or '')
+    date_to = _parse_date(request.query_params.get('to') or '')
+
+    def farmer_filter(qs, field='farmer_id'):
+        if farmer_id.isdigit():
+            qs = qs.filter(**{field: int(farmer_id)})
+        return qs
+
+    if rtype == 'work':
+        qs = Work.objects.select_related('farmer').filter(user=user)
+        qs = farmer_filter(qs)
+        if work_type:
+            qs = qs.filter(work_type=work_type)
+        if date_from:
+            qs = qs.filter(work_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(work_date__lte=date_to)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(work_type__icontains=search)
+                | Q(farmer__name__icontains=search)
+                | Q(farmer__village__icontains=search)
+            )
+        qs = qs.order_by('-work_date', '-id')
+        agg = qs.aggregate(area=Sum('area'), amount=Sum('amount'))
+        return Response({
+            'type': 'work',
+            'records': [
+                {'id': w.id, 'farmer': w.farmer.name, 'village': w.farmer.village,
+                 'work_type': w.work_type, 'date': str(w.work_date),
+                 'area': str(w.area), 'amount': str(w.amount)}
+                for w in qs
+            ],
+            'summary': {'count': qs.count(),
+                        'total_area': str(agg['area'] or 0),
+                        'total_amount': str(agg['amount'] or 0)},
+        })
+
+    if rtype == 'billing':
+        qs = Bill.objects.select_related('farmer', 'work').filter(user=user)
+        qs = farmer_filter(qs)
+        if status_f in ('Unpaid', 'Partial', 'Paid'):
+            qs = qs.filter(status=status_f)
+        if date_from:
+            qs = qs.filter(bill_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(bill_date__lte=date_to)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(farmer__name__icontains=search)
+                | Q(work__work_type__icontains=search)
+            )
+        qs = qs.order_by('-bill_date', '-id')
+        bills = list(qs)
+        total = sum((b.total_amount for b in bills), Decimal('0'))
+        paid = sum((b.get_paid_amount() for b in bills), Decimal('0'))
+        return Response({
+            'type': 'billing',
+            'records': [
+                {'id': b.id, 'farmer': b.farmer.name, 'work': b.work.work_type,
+                 'bill_date': str(b.bill_date), 'total': str(b.total_amount),
+                 'paid': str(b.get_paid_amount()), 'pending': str(b.get_pending_amount()),
+                 'status': b.status}
+                for b in bills
+            ],
+            'summary': {'count': len(bills), 'total': str(total),
+                        'paid': str(paid), 'pending': str(total - paid)},
+        })
+
+    if rtype == 'payment':
+        qs = Payment.objects.select_related('bill', 'bill__farmer').filter(user=user)
+        if farmer_id.isdigit():
+            qs = qs.filter(bill__farmer_id=int(farmer_id))
+        if method:
+            qs = qs.filter(method=method)
+        if date_from:
+            qs = qs.filter(payment_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(payment_date__lte=date_to)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(bill__farmer__name__icontains=search)
+                | Q(method__icontains=search)
+            )
+        qs = qs.order_by('-payment_date', '-id')
+        agg = qs.aggregate(total=Sum('amount'))
+        return Response({
+            'type': 'payment',
+            'records': [
+                {'id': p.id, 'farmer': p.bill.farmer.name, 'bill_id': p.bill_id,
+                 'date': str(p.payment_date), 'method': p.method, 'amount': str(p.amount)}
+                for p in qs
+            ],
+            'summary': {'count': qs.count(), 'total': str(agg['total'] or 0)},
+        })
+
+    if rtype == 'pending':
+        qs = Bill.objects.select_related('farmer', 'work').filter(user=user)
+        qs = farmer_filter(qs)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(farmer__name__icontains=search)
+                | Q(farmer__mobile__icontains=search)
+            )
+        pending_bills = [b for b in qs if b.get_pending_amount() > 0]
+        pending_bills.sort(key=lambda b: (str(b.bill_date), b.id), reverse=True)
+        total_pending = sum((b.get_pending_amount() for b in pending_bills), Decimal('0'))
+        return Response({
+            'type': 'pending',
+            'records': [
+                {'id': b.id, 'farmer': b.farmer.name, 'mobile': b.farmer.mobile,
+                 'village': b.farmer.village, 'bill_date': str(b.bill_date),
+                 'total': str(b.total_amount), 'paid': str(b.get_paid_amount()),
+                 'pending': str(b.get_pending_amount()), 'status': b.status}
+                for b in pending_bills
+            ],
+            'summary': {'count': len(pending_bills), 'total_pending': str(total_pending)},
+        })
+
+    if rtype == 'expense':
+        qs = Expense.objects.filter(user=user)
+        if expense_type:
+            qs = qs.filter(expense_type=expense_type)
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(expense_type__icontains=search)
+                | Q(description__icontains=search)
+            )
+        qs = qs.order_by('-date', '-id')
+        agg = qs.aggregate(total=Sum('amount'))
+        return Response({
+            'type': 'expense',
+            'records': [
+                {'id': e.id, 'expense_type': e.expense_type, 'date': str(e.date),
+                 'amount': str(e.amount), 'description': e.description}
+                for e in qs
+            ],
+            'summary': {'count': qs.count(), 'total': str(agg['total'] or 0)},
+        })
+
+    # performance (default for unknown type): business summary + breakdowns
+    works = Work.objects.filter(user=user)
+    bills = Bill.objects.filter(user=user)
+    payments = Payment.objects.filter(user=user)
+    expenses = Expense.objects.filter(user=user)
+    if farmer_id.isdigit():
+        works = works.filter(farmer_id=int(farmer_id))
+        bills = bills.filter(farmer_id=int(farmer_id))
+        payments = payments.filter(bill__farmer_id=int(farmer_id))
+    if date_from:
+        works = works.filter(work_date__gte=date_from)
+        bills = bills.filter(bill_date__gte=date_from)
+        payments = payments.filter(payment_date__gte=date_from)
+        expenses = expenses.filter(date__gte=date_from)
+    if date_to:
+        works = works.filter(work_date__lte=date_to)
+        bills = bills.filter(bill_date__lte=date_to)
+        payments = payments.filter(payment_date__lte=date_to)
+        expenses = expenses.filter(date__lte=date_to)
+
+    income = bills.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+    received = payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    exp_total = expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    by_work = list(works.values('work_type').annotate(
+        count=Count('id'), amount=Sum('amount')).order_by('-amount'))
+    by_expense = list(expenses.values('expense_type').annotate(
+        count=Count('id'), amount=Sum('amount')).order_by('-amount'))
+    return Response({
+        'type': 'performance',
+        'records': [],
+        'summary': {
+            'income': str(income), 'received': str(received),
+            'pending': str(income - received), 'expenses': str(exp_total),
+            'profit_cash': str(received - exp_total),
+            'profit_billed': str(income - exp_total),
+            'counts': {'works': works.count(), 'bills': bills.count(),
+                       'payments': payments.count(), 'expenses': expenses.count()},
+            'by_work_type': [{'work_type': r['work_type'], 'count': r['count'],
+                              'amount': str(r['amount'] or 0)} for r in by_work],
+            'by_expense_type': [{'expense_type': r['expense_type'], 'count': r['count'],
+                                 'amount': str(r['amount'] or 0)} for r in by_expense],
+        },
+    })
