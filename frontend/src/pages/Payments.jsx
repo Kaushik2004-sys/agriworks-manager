@@ -7,11 +7,17 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
+import { listFarmers } from '../services/farmers';
+import { listWorks } from '../services/works';
 import { PAYMENT_METHODS, createPayment, deletePayment, listPayments, updatePayment } from '../services/payments';
 
 export default function Payments() {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
+  const [farmers, setFarmers] = useState([]);
+  const [farmerSearch, setFarmerSearch] = useState('');
+  const [selectedFarmer, setSelectedFarmer] = useState('');
+  const [worksMap, setWorksMap] = useState({});
   const [bills, setBills] = useState([]);
   const [selectedBill, setSelectedBill] = useState(searchParams.get('bill') || '');
   const [payments, setPayments] = useState([]);
@@ -32,16 +38,79 @@ export default function Payments() {
   // When editing, remaining allowed = current pending + this payment's amount
   const maxAllowed = editing ? pending + Number(editing.amount) : pending;
 
-  async function loadBills() {
+  const farmer = useMemo(
+    () => farmers.find((f) => String(f.id) === String(selectedFarmer)),
+    [farmers, selectedFarmer]
+  );
+
+  function formatWorkDate(value) {
+    if (!value) return '';
+    const d = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function billLabel(b) {
+    const area = worksMap[b.work]?.area;
+    const parts = [b.work_type || `Bill #${b.id}`, formatWorkDate(b.work_date)];
+    if (area) parts.push(`${area} Acres`);
+    parts.push(`Total Rs ${b.total_amount}`);
+    parts.push(b.status === 'Paid' ? 'Paid' : `Pending Rs ${b.pending_amount}`);
+    return parts.filter(Boolean).join(' | ');
+  }
+
+  // Paid bills cannot take another payment (backend would reject amount > 0 pending).
+  // The bill being edited stays selectable so an existing payment can be updated.
+  function isBillDisabled(b) {
+    if (editing && String(editing.bill) === String(b.id)) return false;
+    return b.status === 'Paid';
+  }
+
+  async function loadFarmers(searchText = '') {
     try {
-      const data = await listBills({});
+      const data = await listFarmers(searchText);
+      setFarmers(Array.isArray(data) ? data : data.results || []);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    }
+  }
+
+  function handleFarmerSearch(e) {
+    e.preventDefault();
+    loadFarmers(farmerSearch.trim());
+  }
+
+  async function loadBills(farmerId) {
+    try {
+      const data = await listBills(farmerId ? { farmer: farmerId } : {});
       const arr = Array.isArray(data) ? data : data.results || [];
       setBills(arr);
-      if (!selectedBill && arr.length > 0 && searchParams.get('bill')) {
-        setSelectedBill(searchParams.get('bill'));
+      // Changing farmer refreshes the work/bill list: drop a selection that
+      // no longer belongs to this farmer (prevents cross-farmer payments).
+      if (selectedBill && !arr.some((b) => String(b.id) === String(selectedBill))) {
+        setSelectedBill('');
+        setPayments([]);
       }
     } catch {
       setError('Something went wrong. Please try again.');
+    }
+  }
+
+  async function loadWorksMap(farmerId) {
+    if (!farmerId) {
+      setWorksMap({});
+      return;
+    }
+    try {
+      const data = await listWorks({ farmer: farmerId });
+      const arr = Array.isArray(data) ? data : data.results || [];
+      const map = {};
+      arr.forEach((w) => {
+        map[w.id] = w;
+      });
+      setWorksMap(map);
+    } catch {
+      // area hints are optional; bills still work without them
     }
   }
 
@@ -65,19 +134,64 @@ export default function Payments() {
 
   function handleRetry() {
     setError('');
-    loadBills();
+    loadFarmers(farmerSearch.trim());
+    loadBills(selectedFarmer);
+    loadWorksMap(selectedFarmer);
     loadPayments(selectedBill);
   }
 
-  // Keep the selected bill in sync when the ?bill= URL changes during SPA navigation.
+  // Resolve a ?bill= deep link to its farmer first, so the dependent
+  // Farmer -> Work/Bill chain starts from the right farmer.
+  useEffect(() => {
+    async function init() {
+      await loadFarmers('');
+      const param = searchParams.get('bill') || '';
+      if (param) {
+        try {
+          const data = await listBills({});
+          const arr = Array.isArray(data) ? data : data.results || [];
+          const found = arr.find((b) => String(b.id) === String(param));
+          if (found) {
+            setSelectedFarmer(String(found.farmer));
+            setSelectedBill(String(found.id));
+            return;
+          }
+        } catch {
+          // fall through to unfiltered bills below
+        }
+      }
+    }
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Farmer -> Work/Bill: every farmer change refreshes the bill/work list.
+  useEffect(() => {
+    loadBills(selectedFarmer);
+    loadWorksMap(selectedFarmer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFarmer]);
+
+  // Keep the selection in sync when the ?bill= URL changes during SPA navigation.
   const billParam = searchParams.get('bill') || '';
   useEffect(() => {
-    setSelectedBill(billParam);
+    if (!billParam || String(billParam) === String(selectedBill)) return;
+    async function resolve() {
+      try {
+        const data = await listBills({});
+        const arr = Array.isArray(data) ? data : data.results || [];
+        const found = arr.find((b) => String(b.id) === String(billParam));
+        if (found) {
+          setSelectedFarmer(String(found.farmer));
+          setSelectedBill(String(found.id));
+        }
+      } catch {
+        // keep current selection on resolve fail
+      }
+    }
+    resolve();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billParam]);
-
-  useEffect(() => {
-    loadBills();
-  }, []);
 
   useEffect(() => {
     loadPayments(selectedBill);
@@ -85,7 +199,7 @@ export default function Payments() {
 
   async function refreshBill() {
     try {
-      const data = await listBills({});
+      const data = await listBills(selectedFarmer ? { farmer: selectedFarmer } : {});
       const arr = Array.isArray(data) ? data : data.results || [];
       setBills(arr);
     } catch {
@@ -94,8 +208,18 @@ export default function Payments() {
   }
 
   function startAdd() {
+    if (!selectedFarmer) {
+      setFormError('Select a farmer first.');
+      setShowForm(true);
+      return;
+    }
     if (!selectedBill) {
       setFormError('Select a bill first.');
+      setShowForm(true);
+      return;
+    }
+    if (bill && bill.status === 'Paid') {
+      setFormError('This bill is already fully paid.');
       setShowForm(true);
       return;
     }
@@ -105,7 +229,20 @@ export default function Payments() {
     setShowForm(true);
   }
 
-  function startEdit(p) {
+  async function startEdit(p) {
+    // Bring the payment's bill (and its farmer) into the dependent chain
+    // so context cards and limits reflect the record being edited.
+    try {
+      const data = await listBills({});
+      const arr = Array.isArray(data) ? data : data.results || [];
+      const found = arr.find((b) => String(b.id) === String(p.bill));
+      if (found) {
+        setSelectedFarmer(String(found.farmer));
+        setSelectedBill(String(found.id));
+      }
+    } catch {
+      // keep current selection; form still edits the right bill id below
+    }
     setEditing(p);
     setForm({ payment_date: p.payment_date, method: p.method, amount: String(p.amount) });
     setFormError('');
@@ -177,21 +314,67 @@ export default function Payments() {
       <BackButton to="/bills" nextTo="/expenses" />
       <h2 className="fw-bold">{t('Payment Management')}</h2>
 
+      <form onSubmit={handleFarmerSearch} className="row g-2 mb-3">
+        <div className="col-12 col-md-6">
+          <label className="form-label">{t('Search Farmer')}</label>
+          <div className="input-group">
+            <input
+              type="text"
+              className="form-control"
+              placeholder={t('Search by name, mobile or village')}
+              value={farmerSearch}
+              onChange={(e) => setFarmerSearch(e.target.value)}
+            />
+            <button className="btn btn-outline-primary" type="submit">{t('Search')}</button>
+          </div>
+        </div>
+        <div className="col-12 col-md-6">
+          <label className="form-label">{t('Select Farmer *')}</label>
+          <select
+            className="form-select"
+            value={selectedFarmer}
+            onChange={(e) => {
+              setSelectedFarmer(e.target.value);
+              setShowForm(false);
+              setEditing(null);
+            }}
+          >
+            <option value="">{t('Select a farmer')}</option>
+            {farmers.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name} – {f.mobile}
+              </option>
+            ))}
+          </select>
+          {farmer && (
+            <div className="form-text">
+              {farmer.name} – {farmer.mobile}{farmer.village ? ` – ${farmer.village}` : ''}
+            </div>
+          )}
+        </div>
+      </form>
+
       <div className="row g-2 mb-3">
         <div className="col-12 col-md-6">
-          <label className="form-label">{t('Select Bill *')}</label>
+          <label className="form-label">{t('Select Work / Bill *')}</label>
           <select
             className="form-select"
             value={selectedBill}
             onChange={(e) => setSelectedBill(e.target.value)}
+            disabled={!selectedFarmer}
           >
-            <option value="">{t('Select a bill')}</option>
+            <option value="">
+              {selectedFarmer ? t('Select a work / bill') : t('Select a farmer first')}
+            </option>
             {bills.map((b) => (
-              <option key={b.id} value={b.id}>
-                Bill #{b.id} {b.farmer_name} – Total Rs {b.total_amount} / Pending Rs {b.pending_amount} ({t(b.status)})
+              <option key={b.id} value={b.id} disabled={isBillDisabled(b)}>
+                {billLabel(b)}
               </option>
             ))}
           </select>
+          {selectedFarmer && bills.length === 0 && (
+            <div className="form-text">{t('No bills found for this farmer.')}</div>
+          )}
         </div>
         <div className="col-12 col-md-6 d-flex align-items-end gap-2 flex-wrap">
           <button className="btn btn-success" type="button" onClick={startAdd} disabled={!selectedBill}>
@@ -263,8 +446,10 @@ export default function Payments() {
         </div>
       )}
 
-      {!selectedBill ? (
-        <div className="alert alert-info">{t('Select a bill to view payment history.')}</div>
+      {!selectedFarmer ? (
+        <div className="alert alert-info">{t('Select a farmer to view their bills.')}</div>
+      ) : !selectedBill ? (
+        <div className="alert alert-info">{t('Select a work / bill to view payment history.')}</div>
       ) : loading ? (
         <p className="text-muted">{t('Loading payments...')}</p>
       ) : payments.length === 0 ? (

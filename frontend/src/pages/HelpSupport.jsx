@@ -154,7 +154,7 @@ export default function HelpSupport() {
               <h6 className="fw-semibold">{t('How to generate a bill from a work record')}</h6>
               <p className="mb-2">{t('Go to Bills and click Generate Bill. Select an unbilled work record (farmer and amount are auto-filled), set Bill Date and Total Amount, then Save.')}</p>
               <h6 className="fw-semibold">{t('Explain automatic bill amount calculation')}</h6>
-              <p className="mb-2">{t('The bill total defaults to the linked work amount but can be adjusted before saving. Paid and pending amounts are calculated automatically from payments.')}</p>
+              <p className="mb-2">{t('The bill total defaults to the linked work amount but can be adjusted before saving. Once a bill is generated, its total amount is locked and cannot be changed. Paid and pending amounts are calculated automatically from payments.')}</p>
               <h6 className="fw-semibold">{t('Explain bill status:')}</h6>
               <ul className="mb-0">
                 <li><b>{t('Unpaid')}</b> — {t('Unpaid — no payment recorded yet.')}</li>
@@ -180,7 +180,7 @@ export default function HelpSupport() {
           <div className={`accordion-collapse collapse ${open === 'payments' ? 'show' : ''}`}>
             <div className="accordion-body small">
               <h6 className="fw-semibold">{t('How to record a payment')}</h6>
-              <p className="mb-2">{t('Go to Payments, select a Bill, click Record Payment, enter Payment Date, Method and Amount, then Save.')}</p>
+              <p className="mb-2">{t('Go to Payments, search and select a Farmer, then select one of their Work/Bill records, click Record Payment, enter Payment Date, Method and Amount, then Save.')}</p>
               <h6 className="fw-semibold">{t('Explain partial payments')}</h6>
               <p className="mb-2">{t('You can pay a bill in multiple installments. Each payment is recorded separately.')}</p>
               <h6 className="fw-semibold">{t('Explain pending amount')}</h6>

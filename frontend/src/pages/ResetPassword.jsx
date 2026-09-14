@@ -44,7 +44,7 @@ export default function ResetPassword() {
         uid, token, new_password: newPassword, confirm_password: confirmPassword,
       });
       alert(data.message || 'Password has been reset. Please log in.');
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Reset failed. The link may be expired.');
     } finally {
@@ -87,7 +87,7 @@ export default function ResetPassword() {
       </form>
 
       <p className="text-center mt-3 mb-0">
-        <Link to="/login">{t('Back to Login')}</Link>
+        <Link to="/login" replace>{t('Back to Login')}</Link>
       </p>
     </div>
   );

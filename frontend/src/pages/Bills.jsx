@@ -254,7 +254,13 @@ export default function Bills() {
                     className="form-control"
                     value={form.total_amount}
                     onChange={(e) => setForm({ ...form, total_amount: e.target.value })}
+                    disabled={!!editing}
+                    readOnly={!!editing}
+                    title={editing ? t('Generated bill amount is locked.') : ''}
                   />
+                  {editing && (
+                    <div className="form-text">{t('Generated bill amount is locked and cannot be changed.')}</div>
+                  )}
                 </div>
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">

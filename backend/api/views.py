@@ -166,7 +166,10 @@ def dashboard_view(request):
             'bills': total_bills,
             'income': str(total_income),
             'received': str(total_received),
-            'pending': str(pending),
+            # Zero pending must read "0" on every database: MySQL SUM(decimal)
+            # yields Decimal('0.00') while SQLite yields 0. Non-zero values
+            # keep their exact decimal representation.
+            'pending': '0' if pending == 0 else str(pending),
             'expenses': str(total_expenses),
         },
         'recent_works': [

@@ -84,6 +84,14 @@ class BillSerializer(serializers.ModelSerializer):
         if attrs.get('total_amount') is not None and Decimal(attrs['total_amount']) <= 0:
             raise serializers.ValidationError(
                 {'total_amount': 'Total amount must be greater than 0.'})
+        # Lock: once a bill is generated its total is frozen. Any API attempt
+        # to change total_amount on update is rejected, so frontend hiding
+        # alone is never the only protection. Same-value resubmits (normal
+        # full-object PUTs that also edit bill_date) remain allowed.
+        if self.instance is not None and attrs.get('total_amount') is not None:
+            if Decimal(attrs['total_amount']) != self.instance.total_amount:
+                raise serializers.ValidationError(
+                    {'total_amount': 'Generated bill amount cannot be changed.'})
         # Never allow lowering the total below what is already paid
         # (prevents negative pending amounts and wrong Paid status).
         if self.instance is not None and attrs.get('total_amount') is not None:

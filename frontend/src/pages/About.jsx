@@ -28,7 +28,7 @@ export default function About() {
         <h5 className="fw-semibold">{t('Key Features')}</h5>
         <ul className="small">
           <li>{t('Farmer Management — Add, view, edit, and delete farmer records with contact details and village information.')}</li>
-          <li>{t('Agricultural Work Tracking — Record work performed for each farmer including work type (Ploughing, Rotavator, Cultivation, Harvesting, Irrigation), date, area covered, and amount charged.')}</li>
+          <li>{t('Agricultural Work Tracking — Record work performed for each farmer including work type (Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, Land Leveling), date, area covered, and amount charged.')}</li>
           <li>{t('Billing System — Generate bills from completed work records with automatic amount calculation and status tracking (Unpaid, Partial, Paid).')}</li>
           <li>{t('Payment Management — Record full or partial payments against bills with multiple payment methods (Cash, UPI, Bank Transfer, Cheque, Other) and automatic pending amount calculation.')}</li>
           <li>{t('Expense Tracking — Log business expenses by type (Diesel, Maintenance, Driver Wages, Other) with dates and optional descriptions.')}</li>

@@ -363,7 +363,52 @@ class BillTotalValidationTests(APITestCase):
         self.assertEqual(res.status_code, 400)
 
     def test_raise_total_keeps_status_correct(self):
+        # Locked totals: raising the total of a generated bill is rejected
+        # and the stored bill is left untouched.
         res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '12000.00'}, format='json')
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['pending_amount'], '9000.00')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('total_amount', res.data)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')
         self.assertEqual(res.data['status'], 'Partial')
+
+    def test_negative_total_rejected_on_create_and_update(self):
+        res = self.client.post('/api/works/', {'farmer': self.farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
+        work2 = res.data['id']
+        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-11', 'total_amount': '-100'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('total_amount', res.data)
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '-100'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('total_amount', res.data)
+        # Bill untouched by the rejected updates.
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')
+
+    def test_total_equal_to_paid_accepted(self):
+        # Lock allows resubmitting the SAME total (normal full-object PUTs
+        # that edit other fields, e.g. bill_date) while any real change,
+        # even down to exactly the paid amount, is rejected as locked.
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-12', 'total_amount': '10000.00'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['bill_date'], '2026-09-12')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '3000.00'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('total_amount', res.data)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+
+    def test_bill_total_stored_and_locked(self):
+        # Generate bill -> amount is stored; changing unrelated Work data
+        # must NOT silently modify the generated bill total.
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        res = self.client.put(f'/api/works/{self.work}/', {'farmer': self.farmer, 'work_type': 'Ploughing', 'work_date': '2026-09-10', 'area': '2.00', 'rate_per_acre': '5000.00', 'amount': '10000.00', 'field_location': 'North Field', 'remark': 'Changed remark'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')

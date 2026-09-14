@@ -64,7 +64,10 @@ export default function Signup() {
         password: form.password,
         confirm_password: form.confirm_password,
       });
-      navigate('/');
+      // Replace register in history and arm post-login collapse of any
+      // older pre-login entries (see CollapseStaleHistory in App.jsx).
+      sessionStorage.setItem('aw_post_login', '1');
+      navigate('/', { replace: true });
     } catch (err) {
       const data = err.response?.data;
       if (data && typeof data === 'object') {
@@ -159,7 +162,7 @@ export default function Signup() {
       </form>
 
       <p className="text-center mt-3 mb-0">
-        {t('Already have an account? ')}<Link to="/login">{t('Login')}</Link>
+        {t('Already have an account? ')}<Link to="/login" replace>{t('Login')}</Link>
       </p>
     </div>
   );

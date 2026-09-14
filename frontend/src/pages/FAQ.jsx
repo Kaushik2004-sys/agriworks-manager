@@ -19,7 +19,7 @@ const FAQS = [
   {
     id: 'work-types',
     q: 'What agricultural work can be recorded?',
-    a: 'You can record work types such as Ploughing, Rotavator, Cultivation, Harvesting, and Irrigation. Each work record is linked to one farmer and includes the work date, area covered, and amount charged.',
+    a: 'You can record work types such as Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, and Land Leveling. Each work record is linked to one farmer and includes the work date, area covered, and amount charged.',
   },
   {
     id: 'bills',

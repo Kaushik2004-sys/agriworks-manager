@@ -36,7 +36,10 @@ export default function Login() {
       } catch {
         isAdmin = false;
       }
-      navigate(isAdmin ? '/admin/dashboard' : '/');
+      // Replace login in history and arm post-login collapse of any
+      // older pre-login entries (see CollapseStaleHistory in App.jsx).
+      sessionStorage.setItem('aw_post_login', '1');
+      navigate(isAdmin ? '/admin/dashboard' : '/', { replace: true });
     } catch (err) {
       const msg = err.response?.data?.error || 'Login failed. Check backend connection.';
       setError(msg);
@@ -91,8 +94,9 @@ export default function Login() {
       </form>
 
       <div className="d-flex justify-content-between flex-wrap gap-2 mt-3">
-        <Link to="/signup">{t('Create New Account')}</Link>
-        <Link to="/forgot-password">{t('Forgot Password?')}</Link>
+        {/* Auth-to-auth moves replace so at most one auth page ever sits in history. */}
+        <Link to="/signup" replace>{t('Create New Account')}</Link>
+        <Link to="/forgot-password" replace>{t('Forgot Password?')}</Link>
       </div>
     </div>
   );

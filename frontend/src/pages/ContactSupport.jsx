@@ -1,23 +1,61 @@
-// Contact & Report Problem page (authenticated users).
+// Contact & Report Problem page: public info for guests, full report form
+// plus My Reports for authenticated users (token-gated, own reports only).
 // A. Contact Support info (links to existing guides; no invented details).
 // B. Report-a-Problem form saved to the database via the support API.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { PROBLEM_TYPES, createProblemReport } from '../services/support';
+import { PROBLEM_TYPES, createProblemReport, listProblemReports } from '../services/support';
 
 const emptyForm = { name: '', email: '', problem_type: '', description: '', screenshot: null };
 
 export default function ContactSupport() {
-  const { user } = useAuth();
+  const { user, token, loading } = useAuth();
   const { t } = useLanguage();
+  const authed = !!(user && token);
   const [form, setForm] = useState(emptyForm);
   const [ok, setOk] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [listError, setListError] = useState('');
+
+  // My Reports: the API returns only this user's own reports.
+  // Re-fetched on every visit and after each submission, so an admin
+  // status change (Pending -> Resolved) becomes visible on refresh.
+  async function loadReports() {
+    setLoadingReports(true);
+    setListError('');
+    try {
+      const data = await listProblemReports();
+      setReports(Array.isArray(data) ? data : data.results || []);
+    } catch {
+      setListError('Something went wrong. Please try again.');
+    } finally {
+      setLoadingReports(false);
+    }
+  }
+
+  useEffect(() => {
+    if (loading) return;
+    // Guests make no authenticated requests: form and My Reports stay hidden.
+    if (authed) loadReports();
+    else setLoadingReports(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, authed]);
+
+  function statusBadge(status) {
+    if (status === 'Resolved') return 'badge bg-success';
+    if (status === 'In Progress') return 'badge bg-info text-dark';
+    return 'badge bg-warning text-dark';
+  }
+
+  const resolvedCount = reports.filter((r) => r.status === 'Resolved').length;
 
   // Prefill from the logged-in account; never overwrite what the user typed.
   useEffect(() => {
@@ -57,6 +95,7 @@ export default function ContactSupport() {
         screenshot: form.screenshot,
       });
       setOk('Your problem has been submitted successfully.');
+      loadReports();
       setForm({
         ...emptyForm,
         name: user?.profile?.full_name || user?.username || '',
@@ -88,6 +127,23 @@ export default function ContactSupport() {
         </div>
       </div>
 
+      {loading ? (
+        <p className="text-muted">{t('Checking login...')}</p>
+      ) : !authed ? (
+        <div className="card mb-3">
+          <div className="card-body">
+            <h5 className="card-title">{t('Report a Problem')}</h5>
+            <p className="text-muted small mb-2">
+              {t('Submitting a problem report requires an account. Please log in or create an account to report a problem.')}
+            </p>
+            <div className="d-flex gap-2 flex-wrap">
+              <Link to="/login" className="btn btn-success btn-sm">{t('Login')}</Link>
+              <Link to="/signup" className="btn btn-outline-success btn-sm">{t('Create Account')}</Link>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="card mb-3">
         <div className="card-body">
           <h5 className="card-title">{t('Report a Problem')}</h5>
@@ -158,6 +214,46 @@ export default function ContactSupport() {
           </form>
         </div>
       </div>
+
+      <div className="card mb-3">
+        <div className="card-body">
+          <h5 className="card-title">{t('My Reports')}</h5>
+          {resolvedCount > 0 && (
+            <div className="alert alert-success">{t('Your reported problem has been resolved.')}</div>
+          )}
+          {listError && <ErrorState message={listError} onRetry={loadReports} />}
+          {loadingReports ? (
+            <p className="text-muted">{t('Loading reports...')}</p>
+          ) : reports.length === 0 ? (
+            <EmptyState message="No problem reports found." />
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-striped table-bordered">
+                <thead className="table-success">
+                  <tr>
+                    <th>{t('Date')}</th>
+                    <th>{t('Problem Type')}</th>
+                    <th>{t('Description')}</th>
+                    <th>{t('Status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((r) => (
+                    <tr key={r.id}>
+                      <td className="text-nowrap">{String(r.created_at || '').slice(0, 10)}</td>
+                      <td>{t(r.problem_type)}</td>
+                      <td style={{ minWidth: 180 }}>{r.description}</td>
+                      <td><span className={statusBadge(r.status)}>{t(r.status)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+        </>
+      )}
     </div>
   );
 }

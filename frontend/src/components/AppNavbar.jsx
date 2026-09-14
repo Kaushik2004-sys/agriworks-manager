@@ -40,7 +40,8 @@ export default function AppNavbar() {
   async function handleLogout() {
     await logout();
     close();
-    navigate('/login');
+    // Replace: Back after logout must not reopen authenticated pages.
+    navigate('/login', { replace: true });
   }
 
   return (

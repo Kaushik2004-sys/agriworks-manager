@@ -4,7 +4,8 @@
 // Phase 10: full flow Login > Dashboard > Farmers > Work > Bills > Payments > Expenses > Reports > Logout.
 // Auth update: public signup + backend-driven password reset.
 // Profile Management: protected /profile page.
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import './App.css';
 import AppNavbar from './components/AppNavbar';
 import AdminRoute from './components/AdminRoute';
@@ -51,13 +52,83 @@ function HomeRoute() {
   return <Dashboard />;
 }
 
+// Already-authenticated users visiting /login or /signup are sent Home
+// with history replacement, so auth pages never linger behind a session.
+function GuestRoute({ children }) {
+  const { user, token, loading } = useAuth();
+  if (loading) {
+    return null;
+  }
+  if (user && token) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
+// Post-login history collapse (no popstate interception, no fake entries).
+// A single replace on login can only drop the top entry, so a pre-login
+// chain like About -> FAQ -> Login would survive behind Dashboard. Instead,
+// login sets a session flag; while it is set, any BACK/FORWARD (POP)
+// traversal landing on a pre-login public/auth page bounces forward to the
+// dashboard via replace (which also drops forward entries). The flag clears
+// on the first PUSH navigation (user settled into the app) and on logout,
+// so legitimate Back/Forward inside the app and deliberate public-page
+// visits keep working normally.
+const COLLAPSE_KEY = 'aw_post_login';
+const PRE_AUTH_PATHS = [
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/about',
+  '/faq',
+  '/privacy',
+  '/terms',
+  '/disclaimer',
+  '/help-support',
+  '/contact-support',
+];
+
+function CollapseStaleHistory() {
+  const { user, token } = useAuth();
+  const location = useLocation();
+  const navType = useNavigationType();
+  const navigate = useNavigate();
+  const authed = !!(user && token);
+
+  useEffect(() => {
+    if (!authed) {
+      sessionStorage.removeItem(COLLAPSE_KEY);
+      return;
+    }
+    // Settle (disarm) only once the user pushes forward into the app itself.
+    // A PUSH that merely re-renders the pre-login location (e.g. auth state
+    // settling right after login, before the replace commits) must NOT
+    // disarm, or the flag set by Login/Signup would be wiped instantly.
+    if (navType === 'PUSH' && !PRE_AUTH_PATHS.includes(location.pathname)) {
+      sessionStorage.removeItem(COLLAPSE_KEY);
+      return;
+    }
+    if (
+      navType === 'POP'
+      && sessionStorage.getItem(COLLAPSE_KEY)
+      && PRE_AUTH_PATHS.includes(location.pathname)
+    ) {
+      navigate(user.is_superuser ? '/admin/dashboard' : '/', { replace: true });
+    }
+  }, [authed, navType, location.pathname, navigate, user]);
+
+  return null;
+}
+
 function App() {
   return (
     <>
+      <CollapseStaleHistory />
       <AppNavbar />
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+        <Route path="/signup" element={<GuestRoute><Signup /></GuestRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/about" element={<About />} />
@@ -180,11 +251,7 @@ function App() {
         />
         <Route
           path="/contact-support"
-          element={
-            <ProtectedRoute>
-              <ContactSupport />
-            </ProtectedRoute>
-          }
+          element={<ContactSupport />}
         />
         <Route
           path="/admin/dashboard"

@@ -62,7 +62,7 @@ export default function ForgotPassword() {
       </form>
 
       <p className="text-center mt-3 mb-0">
-        <Link to="/login">{t('Back to Login')}</Link>
+        <Link to="/login" replace>{t('Back to Login')}</Link>
       </p>
     </div>
   );
