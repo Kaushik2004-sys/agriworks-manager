@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import BackButton from '../components/BackButton';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PASSWORD_HINT, passwordError } from '../utils/validatePassword';
 
@@ -24,18 +25,27 @@ export default function Profile() {
   const [pwOk, setPwOk] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
 
+  async function load() {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const data = await loadProfile();
+      setProfile(data);
+      setForm({
+        full_name: data.profile?.full_name || '',
+        company_name: data.profile?.company_name || '',
+        mobile: data.profile?.mobile || '',
+      });
+    } catch {
+      setLoadError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    loadProfile()
-      .then((data) => {
-        setProfile(data);
-        setForm({
-          full_name: data.profile?.full_name || '',
-          company_name: data.profile?.company_name || '',
-          mobile: data.profile?.mobile || '',
-        });
-      })
-      .catch(() => setLoadError('Cannot load profile. Check backend connection.'))
-      .finally(() => setLoading(false));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function validateProfile() {
@@ -65,8 +75,9 @@ export default function Profile() {
       setProfile(updated);
       setEditing(false);
       setFormOk('Profile updated successfully.');
-    } catch (err) {
-      setFormError(err.response?.data?.error || 'Update failed. Try again.');
+    } catch {
+      // Keep form data intact; no technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -99,8 +110,8 @@ export default function Profile() {
       });
       setPwOk(res.message || 'Password changed successfully.');
       setPw({ current_password: '', new_password: '', confirm_password: '' });
-    } catch (err) {
-      setPwError(err.response?.data?.error || 'Password change failed. Try again.');
+    } catch {
+      setPwError('Save failed. Please try again.');
     } finally {
       setPwBusy(false);
     }
@@ -111,7 +122,7 @@ export default function Profile() {
     return (
       <div className="container py-4">
         <h2 className="fw-bold">{t('Profile')}</h2>
-        <div className="alert alert-danger mt-3">{t(loadError)}</div>
+        <div className="mt-3"><ErrorState message={loadError} onRetry={load} /></div>
       </div>
     );
   }

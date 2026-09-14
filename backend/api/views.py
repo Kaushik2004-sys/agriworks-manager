@@ -9,8 +9,16 @@ from django.db.models import Count, Sum
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
+
+
+class IsSuperUser(BasePermission):
+    """AgriWorks admin = Django is_superuser (not is_staff)."""
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated
+                    and request.user.is_superuser)
 
 
 @api_view(['GET'])
@@ -74,6 +82,9 @@ def login_view(request):
         )
 
     token, _ = Token.objects.get_or_create(user=user)
+    # Permanent login record (one NEW row per successful login; never updated).
+    from accounts.models import LoginHistory
+    LoginHistory.objects.create(user=user, status='Successful')
     return Response({
         'token': token.key,
         'username': user.username,
@@ -106,6 +117,7 @@ def me_view(request):
         'username': request.user.username,
         'email': request.user.email,
         'is_staff': request.user.is_staff,
+        'is_superuser': request.user.is_superuser,
         'profile': profile_dict(request.user),
     })
 
@@ -190,6 +202,88 @@ def dashboard_view(request):
     })
 
 
+@api_view(['GET'])
+@permission_classes([IsSuperUser])
+def admin_overview_view(request):
+    """Admin Dashboard statistics across ALL users (superuser only).
+
+    Counts and sums only — no passwords, tokens or sensitive details.
+    Only aggregates shown on the Admin Dashboard are computed.
+    """
+    from django.contrib.auth.models import User
+    from support.models import ProblemReport
+
+    total_users = User.objects.count()
+    recent_users = User.objects.order_by('-date_joined', '-id')[:5]
+
+    reports = ProblemReport.objects.all()
+    recent_reports = ProblemReport.objects.select_related('user').order_by('-created_at', '-id')[:5]
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+        db_status = 'connected'
+    except Exception:
+        db_status = 'error'
+
+    return Response({
+        'totals': {
+            'users': total_users,
+            'problem_reports': reports.count(),
+        },
+        'problem_reports': {
+            'pending': reports.filter(status='Pending').count(),
+            'in_progress': reports.filter(status='In Progress').count(),
+            'resolved': reports.filter(status='Resolved').count(),
+        },
+        'recent_users': [
+            {
+                'username': u.username,
+                'email': u.email,
+                'is_superuser': u.is_superuser,
+                'date_joined': u.date_joined.date().isoformat() if u.date_joined else '',
+            }
+            for u in recent_users
+        ],
+        'recent_reports': [
+            {
+                'id': r.id,
+                'username': r.user.username if r.user_id else '',
+                'problem_type': r.problem_type,
+                'status': r.status,
+                'created_at': r.created_at.date().isoformat() if r.created_at else '',
+            }
+            for r in recent_reports
+        ],
+        'system': {'api': 'ok', 'database': db_status},
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsSuperUser])
+def admin_login_history_view(request):
+    """Login History for the Admin Dashboard (superuser only, newest first).
+
+    Exposes usernames/emails/timestamps only — never passwords or tokens.
+    """
+    from django.utils import timezone
+    from accounts.models import LoginHistory
+
+    records = LoginHistory.objects.select_related('user').order_by('-created_at', '-id')
+    items = []
+    for h in records:
+        logged_at = timezone.localtime(h.created_at) if h.created_at else None
+        items.append({
+            'id': h.id,
+            'username': h.user.username if h.user_id else '',
+            'email': h.user.email if h.user_id else '',
+            'login_date': logged_at.strftime('%d %b %Y') if logged_at else '',
+            'login_time': logged_at.strftime('%I:%M %p') if logged_at else '',
+            'status': h.status,
+        })
+    return Response(items)
+
+
 def _parse_date(value):
     """Parse YYYY-MM-DD or return None (for report filters)."""
     try:
@@ -252,7 +346,14 @@ def reports_view(request):
             'records': [
                 {'id': w.id, 'farmer': w.farmer.name, 'village': w.farmer.village,
                  'work_type': w.work_type, 'date': str(w.work_date),
-                 'area': str(w.area), 'amount': str(w.amount)}
+                 'field_location': w.field_location or '',
+                 'remark': w.remark or '',
+                 'work_description': w.work_description or '',
+                 'area': str(w.area) if w.area is not None else '', 'amount': str(w.amount),
+                 'hours': w.irrigation_hours if w.irrigation_hours is not None else '',
+                 'minutes': w.irrigation_minutes if w.irrigation_minutes is not None else '',
+                 'hourly_rate': str(w.hourly_rate) if w.hourly_rate is not None else '',
+                 'rate_per_acre': str(w.rate_per_acre) if w.rate_per_acre is not None else ''}
                 for w in qs
             ],
             'summary': {'count': qs.count(),

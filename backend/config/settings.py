@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'billing',
     'payments',
     'expenses',
+    'support',
 ]
 
 MIDDLEWARE = [
@@ -121,6 +122,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic target for production
+
+# Uploads (problem-report screenshots only). Served by Django in DEBUG;
+# production deployments need separate media serving for this directory.
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # CSRF trusted origins (comma-separated env). Token-auth API is CSRF-exempt
 # by design; this covers admin/session use in production.

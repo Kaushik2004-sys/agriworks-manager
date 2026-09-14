@@ -2,6 +2,8 @@
 // 6 reports from actual DB records with filters, print and CSV export.
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { REPORT_TYPES, getReport } from '../services/reports';
@@ -13,7 +15,7 @@ function toCSV(rows) {
   return [headers.join(','), ...rows.map((r) => headers.map((h) => esc(r[h])).join(','))].join('\n');
 }
 
-const WORK_TYPE_OPTIONS = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation'];
+const WORK_TYPE_OPTIONS = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation', 'Other', 'Land Leveling'];
 const EXPENSE_TYPE_OPTIONS = ['Diesel', 'Maintenance', 'Driver Wages', 'Other'];
 const METHOD_OPTIONS = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Other'];
 const STATUS_OPTIONS = ['Unpaid', 'Partial', 'Paid'];
@@ -21,7 +23,9 @@ const STATUS_OPTIONS = ['Unpaid', 'Partial', 'Paid'];
 // Raw API field names mapped to translatable UI labels (values stay English).
 const COLUMN_LABELS = {
   id: 'ID', farmer: 'Farmer', village: 'Village', work_type: 'Work Type',
+  field_location: 'Field / Location', remark: 'Remark', work_description: 'Work Description',
   date: 'Date', area: 'Area', amount: 'Amount', work: 'Work',
+  hours: 'Hours', minutes: 'Minutes', hourly_rate: 'Rate per Hour', rate_per_acre: 'Rate per Acre',
   bill_date: 'Bill Date', total: 'Total', paid: 'Paid', pending: 'Pending',
   status: 'Status', bill_id: 'Bill ID', mobile: 'Mobile',
   expense_type: 'Expense Type', description: 'Description',
@@ -52,7 +56,7 @@ export default function Reports() {
       const res = await getReport(type, filters);
       setData(res);
     } catch {
-      setError('Cannot load report. Check backend is running.');
+      setError('Something went wrong. Please try again.');
       setData(null);
     } finally {
       setLoading(false);
@@ -142,7 +146,6 @@ export default function Reports() {
       </div>
 
       <h2 className="fw-bold d-print-none">{t('Reports')}</h2>
-      <p className="text-muted d-print-none">{t('Phase 9 – Organized reports from actual records.')}</p>
 
       <div className="row g-2 mb-3 d-print-none">
         {REPORT_TYPES.map((r) => (
@@ -233,7 +236,7 @@ export default function Reports() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger d-print-none">{t(error)}</div>}
+      {error && <div className="d-print-none"><ErrorState message={error} onRetry={load} /></div>}
       {loading && <p className="text-muted d-print-none">{t('Loading')} {label}...</p>}
 
       {!loading && data && (
@@ -266,7 +269,7 @@ export default function Reports() {
 
           {type !== 'performance' && (
             records.length === 0 ? (
-              <div className="alert alert-info">{t('No records for this report with current filters.')}</div>
+              <EmptyState message="No records found for the selected filters." />
             ) : (
               <div className="table-responsive report-print-table">
                 <table className="table table-striped table-bordered">
@@ -275,7 +278,7 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {records.map((r, i) => (
-                      <tr key={i}>{columns.map((c) => <td key={c}>{String(r[c] ?? '')}</td>)}</tr>
+                      <tr key={i}>{columns.map((c) => <td key={c}>{c === 'work_type' ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
                     ))}
                   </tbody>
                 </table>

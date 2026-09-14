@@ -7,9 +7,15 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import './App.css';
 import AppNavbar from './components/AppNavbar';
+import AdminRoute from './components/AdminRoute';
+import NotFound from './components/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import About from './pages/About';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminLoginHistory from './pages/AdminLoginHistory';
+import AdminProblemReports from './pages/AdminProblemReports';
 import Bills from './pages/Bills';
+import ContactSupport from './pages/ContactSupport';
 import Dashboard from './pages/Dashboard';
 import DashboardExpenses from './pages/DashboardExpenses';
 import DashboardFarmers from './pages/DashboardFarmers';
@@ -22,6 +28,7 @@ import Expenses from './pages/Expenses';
 import FAQ from './pages/FAQ';
 import Farmers from './pages/Farmers';
 import Footer from './components/Footer';
+import { useAuth } from './context/AuthContext';
 import ForgotPassword from './pages/ForgotPassword';
 import HelpSupport from './pages/HelpSupport';
 import Login from './pages/Login';
@@ -33,6 +40,16 @@ import ResetPassword from './pages/ResetPassword';
 import Signup from './pages/Signup';
 import Terms from './pages/Terms';
 import Works from './pages/Works';
+
+// Home shows the Admin Dashboard to superusers and the normal
+// business dashboard to everyone else (never the reverse).
+function HomeRoute() {
+  const { user } = useAuth();
+  if (user?.is_superuser) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  return <Dashboard />;
+}
 
 function App() {
   return (
@@ -53,7 +70,7 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <HomeRoute />
             </ProtectedRoute>
           }
         />
@@ -161,7 +178,46 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/contact-support"
+          element={
+            <ProtectedRoute>
+              <ContactSupport />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/problem-reports"
+          element={
+            <AdminRoute>
+              <AdminProblemReports />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/login-history"
+          element={
+            <AdminRoute>
+              <AdminLoginHistory />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <ProtectedRoute>
+              <NotFound />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <Footer />
     </>

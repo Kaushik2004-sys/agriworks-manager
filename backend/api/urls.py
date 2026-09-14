@@ -9,4 +9,6 @@ urlpatterns = [
     path('me/', views.me_view, name='api-me'),
     path('dashboard/', views.dashboard_view, name='api-dashboard'),
     path('reports/', views.reports_view, name='api-reports'),
+    path('admin/overview/', views.admin_overview_view, name='api-admin-overview'),
+    path('admin/login-history/', views.admin_login_history_view, name='api-admin-login-history'),
 ]

@@ -4,6 +4,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createBill, deleteBill, listBills, listUnbilledWorks, updateBill } from '../services/bills';
 import { listWorks } from '../services/works';
@@ -32,7 +34,7 @@ export default function Bills() {
       const data = await listBills({ search: searchText.trim(), status });
       setBills(Array.isArray(data) ? data : data.results || []);
     } catch {
-      setError('Cannot load bills. Check backend is running.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -141,16 +143,9 @@ export default function Bills() {
       setEditing(null);
       load(search.trim(), filterStatus);
       loadUnbilled();
-    } catch (err) {
-      const data = err.response?.data;
-      if (data && typeof data === 'object') {
-        const firstKey = Object.keys(data)[0];
-        const val = data[firstKey];
-        const firstMsg = Array.isArray(val) ? val[0] : typeof val === 'string' ? val : JSON.stringify(val);
-        setFormError(`${firstKey}: ${firstMsg}`);
-      } else {
-        setFormError('Save failed. Check values and try again.');
-      }
+    } catch {
+      // Keep form data intact; show friendly message without technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -163,7 +158,7 @@ export default function Bills() {
       load(search.trim(), filterStatus);
       loadUnbilled();
     } catch {
-      setError('Delete failed.');
+      setError('Delete failed. Please try again.');
     }
   }
 
@@ -174,7 +169,6 @@ export default function Bills() {
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/works" nextTo="/payments" />
       <h2 className="fw-bold">{t('Billing Management')}</h2>
-      <p className="text-muted">{t('Phase 5 – Generate bills from work records.')}</p>
 
       <form className="row g-2 mb-3" onSubmit={handleFilter}>
         <div className="col-12 col-md-5">
@@ -199,7 +193,7 @@ export default function Bills() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterStatus)} />}
 
       {showForm && (
         <div className="card mb-3">
@@ -279,7 +273,7 @@ export default function Bills() {
       {loading ? (
         <p className="text-muted">{t('Loading bills...')}</p>
       ) : bills.length === 0 ? (
-        <div className="alert alert-info">{t('No bills found. Click Generate Bill.')}</div>
+        <EmptyState message="No bills found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered">

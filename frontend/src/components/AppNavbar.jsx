@@ -15,6 +15,7 @@ export default function AppNavbar() {
   const [open, setOpen] = useState(false);
 
   // Main authenticated navigation links (Profile stays separate below).
+  // Superusers see admin links instead of the operational links.
   const NAV_LINKS = [
     { to: '/', label: 'Home' },
     { to: '/farmers', label: 'Farmers' },
@@ -23,6 +24,13 @@ export default function AppNavbar() {
     { to: '/payments', label: 'Payments' },
     { to: '/expenses', label: 'Expenses' },
     { to: '/reports', label: 'Reports' },
+    { to: '/contact-support', label: 'Contact & Report Problem' },
+  ];
+
+  const ADMIN_LINKS = [
+    { to: '/admin/dashboard', label: 'Admin Dashboard' },
+    { to: '/admin/problem-reports', label: 'Problem Reports' },
+    { to: '/admin/login-history', label: 'Login History' },
   ];
 
   function close() {
@@ -53,8 +61,8 @@ export default function AppNavbar() {
         </button>
         <div className={`collapse navbar-collapse${open ? ' show' : ''}`}>
           {user && (
-            <div className="navbar-nav me-auto align-items-lg-center">
-              {NAV_LINKS.map((l, i) => (
+            <div className="navbar-nav me-auto align-items-lg-center flex-wrap">
+              {(user.is_superuser ? ADMIN_LINKS : NAV_LINKS).map((l, i) => (
                 <span key={l.to} className="d-flex align-items-center">
                   {i > 0 && (
                     <span className="d-none d-lg-inline text-white-50 px-1" aria-hidden="true">
@@ -66,10 +74,10 @@ export default function AppNavbar() {
               ))}
             </div>
           )}
-          <div className="navbar-nav ms-auto align-items-lg-center">
+          <div className="navbar-nav ms-auto align-items-lg-center flex-wrap">
             <button
               type="button"
-              className="btn btn-outline-light btn-sm my-2 my-lg-0 me-lg-2"
+              className="btn btn-outline-light btn-sm my-2 my-lg-0 me-lg-2 flex-shrink-0"
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
               title={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
@@ -77,7 +85,7 @@ export default function AppNavbar() {
               <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
             </button>
             <select
-              className="form-select form-select-sm my-2 my-lg-0 me-lg-2"
+              className="form-select form-select-sm my-2 my-lg-0 me-lg-2 flex-shrink-0"
               style={{ width: 'auto' }}
               value={lang}
               onChange={(e) => setLang(e.target.value)}
@@ -89,9 +97,9 @@ export default function AppNavbar() {
             </select>
             {user ? (
               <>
-                <Link className="nav-link me-lg-2" to="/profile" onClick={close}>{t('Profile')}</Link>
-                <span className="navbar-text me-lg-3">{t('Hi,')} {user.username}</span>
-                <button className="btn btn-light btn-sm my-2 my-lg-0" onClick={handleLogout}>
+                <Link className="nav-link me-lg-2 flex-shrink-0" to="/profile" onClick={close}>{t('Profile')}</Link>
+                <span className="navbar-text me-lg-3 text-nowrap text-truncate" style={{ maxWidth: 220 }}>{t('Hi,')} {user.profile?.full_name || ''}</span>
+                <button className="btn btn-light btn-sm my-2 my-lg-0 flex-shrink-0" onClick={handleLogout}>
                   {t('Logout')}
                 </button>
               </>

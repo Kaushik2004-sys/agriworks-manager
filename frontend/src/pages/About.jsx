@@ -1,9 +1,11 @@
 // Static About AgriWorks page — informational only, no API calls, no DB changes.
 // Uses existing Bootstrap styling and language system (t() for EN/HI/MR).
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function About() {
+  const { user } = useAuth();
   const { t } = useLanguage();
 
   return (
@@ -47,11 +49,21 @@ export default function About() {
       <div className="card">
         <div className="card-body text-center">
           <p className="small text-muted mb-2">{t('Explore the application to see how it can help manage your agricultural services.')}</p>
-          <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
-            <a href="/login" className="btn btn-success btn-sm">{t('Get Started')}</a>
-            <a href="/signup" className="btn btn-outline-success btn-sm">{t('Create Account')}</a>
-            <Link to="/help-support" className="btn btn-success btn-sm">{t('Next')}</Link>
+          <div className={user ? 'd-flex gap-2 justify-content-between flex-wrap' : 'd-flex gap-2 justify-content-center flex-wrap'}>
+            {user ? (
+              <>
+                <span />
+                <Link to={user.is_superuser ? '/admin/dashboard' : '/'} className="btn btn-success btn-sm">{t('Go to Dashboard')}</Link>
+                <Link to="/help-support" className="btn btn-success btn-sm">{t('Next')} &rarr;</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
+                <a href="/login" className="btn btn-success btn-sm">{t('Get Started')}</a>
+                <a href="/signup" className="btn btn-outline-success btn-sm">{t('Create Account')}</a>
+                <Link to="/help-support" className="btn btn-success btn-sm">{t('Next')}</Link>
+              </>
+            )}
           </div>
         </div>
       </div>

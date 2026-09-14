@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
 import { PAYMENT_METHODS, createPayment, deletePayment, listPayments, updatePayment } from '../services/payments';
@@ -39,7 +41,7 @@ export default function Payments() {
         setSelectedBill(searchParams.get('bill'));
       }
     } catch {
-      setError('Cannot load bills. Check backend is running.');
+      setError('Something went wrong. Please try again.');
     }
   }
 
@@ -50,14 +52,21 @@ export default function Payments() {
       return;
     }
     setLoading(true);
+    setError('');
     try {
       const data = await listPayments({ bill: billId });
       setPayments(Array.isArray(data) ? data : data.results || []);
     } catch {
-      setError('Cannot load payments.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleRetry() {
+    setError('');
+    loadBills();
+    loadPayments(selectedBill);
   }
 
   useEffect(() => {
@@ -137,16 +146,9 @@ export default function Payments() {
       setEditing(null);
       await refreshBill();
       await loadPayments(selectedBill);
-    } catch (err) {
-      const data = err.response?.data;
-      if (data && typeof data === 'object') {
-        const firstKey = Object.keys(data)[0];
-        const val = data[firstKey];
-        const firstMsg = Array.isArray(val) ? val[0] : typeof val === 'string' ? val : JSON.stringify(val);
-        setFormError(`${firstKey}: ${firstMsg}`);
-      } else {
-        setFormError('Save failed. Check values and try again.');
-      }
+    } catch {
+      // Keep form data intact; show friendly message without technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -159,7 +161,7 @@ export default function Payments() {
       await refreshBill();
       await loadPayments(selectedBill);
     } catch {
-      setError('Delete failed.');
+      setError('Delete failed. Please try again.');
     }
   }
 
@@ -168,7 +170,6 @@ export default function Payments() {
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/bills" nextTo="/expenses" />
       <h2 className="fw-bold">{t('Payment Management')}</h2>
-      <p className="text-muted">{t('Phase 6 – Full, partial and pending payments per bill.')}</p>
 
       <div className="row g-2 mb-3">
         <div className="col-12 col-md-6">
@@ -193,7 +194,7 @@ export default function Payments() {
         </div>
       </div>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      {error && <ErrorState message={error} onRetry={handleRetry} />}
 
       {bill && (
         <div className="row g-2 mb-3">
@@ -261,7 +262,7 @@ export default function Payments() {
       ) : loading ? (
         <p className="text-muted">{t('Loading payments...')}</p>
       ) : payments.length === 0 ? (
-        <div className="alert alert-info">{t('No payments yet for this bill. Click Record Payment.')}</div>
+        <EmptyState message="No payments found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered">

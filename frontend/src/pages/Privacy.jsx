@@ -1,19 +1,17 @@
 // Static Privacy Policy page — informational only, no API calls, no DB changes.
 // Uses existing Bootstrap styling and language system (t() for EN/HI/MR).
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Privacy() {
+  const { user } = useAuth();
   const { t } = useLanguage();
 
   return (
     <div className="container py-4">
       <h2 className="fw-bold">{t('Privacy Policy')}</h2>
       <p className="text-muted">{t('How information is handled in AgriWorks Manager. Last updated: 2026.')}</p>
-
-      <div className="alert alert-info small">
-        {t('This page provides information only. No data is created or modified here.')}
-      </div>
 
       <section className="mb-4">
         <h5 className="fw-semibold">{t('Overview')}</h5>
@@ -76,11 +74,22 @@ export default function Privacy() {
       <div className="card">
         <div className="card-body text-center">
           <p className="small text-muted mb-2">{t('Questions about this policy? Review the FAQ or contact the project administrator.')}</p>
-          <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
-            <Link to="/faq" className="btn btn-outline-success btn-sm">{t('View FAQ')}</Link>
-            <Link to="/about" className="btn btn-success btn-sm">{t('About AgriWorks')}</Link>
-            <Link to="/terms" className="btn btn-success btn-sm">{t('Next')}</Link>
+          <div className={user ? 'd-flex gap-2 justify-content-between flex-wrap' : 'd-flex gap-2 justify-content-center flex-wrap'}>
+            {user ? (
+              <>
+                <Link to="/faq" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to={user.is_superuser ? '/admin/dashboard' : '/'} className="btn btn-success btn-sm">{t('Go to Dashboard')}</Link>
+                <Link to="/terms" className="btn btn-success btn-sm">{t('Next')} &rarr;</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/faq" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
+                <Link to="/faq" className="btn btn-outline-success btn-sm">{t('View FAQ')}</Link>
+                <Link to="/about" className="btn btn-success btn-sm">{t('About AgriWorks')}</Link>
+                <Link to="/terms" className="btn btn-success btn-sm">{t('Next')}</Link>
+              </>
+            )}
           </div>
         </div>
       </div>

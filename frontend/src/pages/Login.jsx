@@ -6,11 +6,12 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, refreshUser } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -27,7 +28,15 @@ export default function Login() {
     setBusy(true);
     try {
       await login(identifier.trim(), password);
-      navigate('/');
+      // Superusers land on the Admin Dashboard; everyone else goes Home.
+      let isAdmin = false;
+      try {
+        const me = await refreshUser();
+        isAdmin = !!me?.is_superuser;
+      } catch {
+        isAdmin = false;
+      }
+      navigate(isAdmin ? '/admin/dashboard' : '/');
     } catch (err) {
       const msg = err.response?.data?.error || 'Login failed. Check backend connection.';
       setError(msg);
@@ -51,18 +60,30 @@ export default function Login() {
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             autoComplete="email"
-            placeholder={t('Email (usernames like admin still work)')}
+            placeholder={t('Enter your registered email')}
           />
         </div>
         <div className="mb-3">
           <label className="form-label">{t('Password')}</label>
-          <input
-            type="password"
-            className="form-control"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
+          <div className="input-group">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className="form-control"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder={t('Enter your password')}
+            />
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={t(showPassword ? 'Hide' : 'Show')}
+              aria-pressed={showPassword}
+            >
+              {t(showPassword ? 'Hide' : 'Show')}
+            </button>
+          </div>
         </div>
         <button className="btn btn-success w-100" disabled={busy} type="submit">
           {busy ? t('Logging in...') : t('Login')}
@@ -72,10 +93,6 @@ export default function Login() {
       <div className="d-flex justify-content-between flex-wrap gap-2 mt-3">
         <Link to="/signup">{t('Create New Account')}</Link>
         <Link to="/forgot-password">{t('Forgot Password?')}</Link>
-      </div>
-
-      <div className="alert alert-info mt-3 small mb-0">
-        {t('Test user:')} <code>admin / admin123</code> {t('(created by backend setup).')}
       </div>
     </div>
   );

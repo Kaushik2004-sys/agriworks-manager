@@ -34,7 +34,7 @@ export async function logoutUser() {
 
 export async function getCurrentUser() {
   const res = await api.get('/me/');
-  return res.data; // { username, email, is_staff, profile: { full_name, company_name, mobile } }
+  return res.data; // { username, email, is_staff, is_superuser, profile: { full_name, company_name, mobile } }
 }
 
 // Auth update: registration + password reset (backend-driven, not frontend-only).

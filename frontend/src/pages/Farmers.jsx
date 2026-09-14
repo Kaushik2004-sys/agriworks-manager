@@ -2,6 +2,8 @@
 // Features: view table, search, add, update, delete + validation.
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createFarmer, deleteFarmer, listFarmers, updateFarmer } from '../services/farmers';
 
@@ -27,7 +29,7 @@ export default function Farmers() {
       // DRF returns array (no pagination by default)
       setFarmers(Array.isArray(data) ? data : data.results || []);
     } catch {
-      setError('Cannot load farmers. Check backend is running.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -93,16 +95,9 @@ export default function Farmers() {
       setForm(emptyForm);
       setEditingId(null);
       load(search.trim());
-    } catch (err) {
-      // Show backend validation errors, e.g. { mobile: ['...'] }
-      const data = err.response?.data;
-      if (data && typeof data === 'object') {
-        const firstKey = Object.keys(data)[0];
-        const firstMsg = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
-        setFormError(`${firstKey}: ${firstMsg}`);
-      } else {
-        setFormError('Save failed. Check values and try again.');
-      }
+    } catch {
+      // Keep form data intact; show friendly message without technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -114,7 +109,7 @@ export default function Farmers() {
       await deleteFarmer(id);
       load(search.trim());
     } catch {
-      setError('Delete failed.');
+      setError('Delete failed. Please try again.');
     }
   }
 
@@ -123,7 +118,6 @@ export default function Farmers() {
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/" nextTo="/works" />
       <h2 className="fw-bold">{t('Farmer Management')}</h2>
-      <p className="text-muted">{t('Phase 3 – Add, view, search, update, delete farmers.')}</p>
 
       <form className="row g-2 mb-3" onSubmit={handleSearch}>
         <div className="col-12 col-md-6">
@@ -140,7 +134,7 @@ export default function Farmers() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      {error && <ErrorState message={error} onRetry={() => load(search.trim())} />}
 
       {showForm && (
         <div className="card mb-3">
@@ -203,7 +197,7 @@ export default function Farmers() {
       {loading ? (
         <p className="text-muted">{t('Loading farmers...')}</p>
       ) : farmers.length === 0 ? (
-        <div className="alert alert-info">{t('No farmers found. Click Add Farmer.')}</div>
+        <EmptyState message="No farmers found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered">

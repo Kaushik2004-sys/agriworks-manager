@@ -2,6 +2,7 @@
 // Uses existing Bootstrap styling and language system (t() for EN/HI/MR).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const SECTIONS = [
@@ -16,10 +17,11 @@ const SECTIONS = [
   { id: 'common', label: 'Common Problems' },
 ];
 
-const WORK_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation'];
+const WORK_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation', 'Other', 'Land Leveling'];
 const EXPENSE_TYPES = ['Diesel', 'Maintenance', 'Driver Wages', 'Other'];
 
 export default function HelpSupport() {
+  const { user } = useAuth();
   const { t } = useLanguage();
   const [open, setOpen] = useState('login');
 
@@ -31,10 +33,6 @@ export default function HelpSupport() {
     <div className="container py-4">
       <h2 className="fw-bold">{t('Help & Support')}</h2>
       <p className="text-muted">{t('Guides for using AgriWorks Manager.')}</p>
-
-      <div className="alert alert-info small">
-        {t('This page provides guidance only. No data is created or modified here.')}
-      </div>
 
       {/* Quick navigation buttons */}
       <div className="d-flex flex-wrap gap-2 mb-3">
@@ -310,11 +308,22 @@ export default function HelpSupport() {
       <div className="card">
         <div className="card-body text-center">
           <p className="small text-muted mb-2">{t('Still need help? Contact the project administrator/support team.')}</p>
-          <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
-            <Link to="/login" className="btn btn-success btn-sm">{t('Go to Login')}</Link>
-            <Link to="/" className="btn btn-outline-success btn-sm">{t('Go to Dashboard')}</Link>
-            <Link to="/faq" className="btn btn-success btn-sm">{t('Next')}</Link>
+          <div className={user ? 'd-flex gap-2 justify-content-between flex-wrap' : 'd-flex gap-2 justify-content-center flex-wrap'}>
+            {user ? (
+              <>
+                <Link to="/about" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to={user.is_superuser ? '/admin/dashboard' : '/'} className="btn btn-success btn-sm">{t('Go to Dashboard')}</Link>
+                <Link to="/faq" className="btn btn-success btn-sm">{t('Next')} &rarr;</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/about" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
+                <Link to="/login" className="btn btn-success btn-sm">{t('Go to Login')}</Link>
+                <Link to="/" className="btn btn-outline-success btn-sm">{t('Go to Dashboard')}</Link>
+                <Link to="/faq" className="btn btn-success btn-sm">{t('Next')}</Link>
+              </>
+            )}
           </div>
         </div>
       </div>

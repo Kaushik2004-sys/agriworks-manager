@@ -2,11 +2,33 @@
 // Every work record is linked to a farmer (Farmer -> Work).
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { WORK_TYPES, createWork, deleteWork, listWorks, updateWork } from '../services/works';
 
-const emptyForm = { farmer: '', work_type: '', work_date: '', area: '', amount: '' };
+const emptyForm = { farmer: '', work_type: '', work_date: '', field_location: '', remark: '', work_description: '', area: '', amount: '', irrigation_hours: '', irrigation_minutes: '', hourly_rate: '', rate_per_acre: '' };
+
+// Work types billed as Area x Rate per Acre (same formula as Land Leveling).
+const AREA_RATE_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting'];
+
+// Total for irrigation time-based billing: (hours + minutes/60) x rate.
+// Returns '' while inputs are incomplete; trims trailing zeros (1250, not 1250.00).
+function irrigationTotal(h, m, r) {
+  if (h === '' || m === '' || r === '') return '';
+  const H = Number(h), M = Number(m), R = Number(r);
+  if (!Number.isFinite(H) || !Number.isFinite(M) || !Number.isFinite(R)) return '';
+  return String(Math.round((H + M / 60) * R * 100) / 100);
+}
+
+// Total for Land Leveling: Area x Rate per Acre. '' while inputs are incomplete.
+function landLevelingTotal(a, r) {
+  if (a === '' || r === '') return '';
+  const A = Number(a), R = Number(r);
+  if (!Number.isFinite(A) || !Number.isFinite(R)) return '';
+  return String(Math.round(A * R * 100) / 100);
+}
 
 export default function Works() {
   const { t } = useLanguage();
@@ -34,7 +56,7 @@ export default function Works() {
       });
       setWorks(Array.isArray(data) ? data : data.results || []);
     } catch {
-      setError('Cannot load work records. Check backend is running.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -71,8 +93,15 @@ export default function Works() {
       farmer: String(w.farmer),
       work_type: w.work_type,
       work_date: w.work_date,
-      area: String(w.area),
+      field_location: w.field_location === null || w.field_location === undefined ? '' : String(w.field_location),
+      remark: w.remark === null || w.remark === undefined ? '' : String(w.remark),
+      work_description: w.work_description === null || w.work_description === undefined ? '' : String(w.work_description),
+      area: w.area === null || w.area === undefined ? '' : String(w.area),
       amount: String(w.amount),
+      irrigation_hours: w.irrigation_hours === null || w.irrigation_hours === undefined ? '' : String(w.irrigation_hours),
+      irrigation_minutes: w.irrigation_minutes === null || w.irrigation_minutes === undefined ? '' : String(w.irrigation_minutes),
+      hourly_rate: w.hourly_rate === null || w.hourly_rate === undefined ? '' : String(w.hourly_rate),
+      rate_per_acre: w.rate_per_acre === null || w.rate_per_acre === undefined ? '' : String(w.rate_per_acre),
     });
     setEditingId(w.id);
     setFormError('');
@@ -83,8 +112,27 @@ export default function Works() {
     if (!form.farmer) return 'Farmer is required.';
     if (!WORK_TYPES.includes(form.work_type)) return 'Select a valid work type.';
     if (!form.work_date) return 'Work date is required.';
+    if (!form.field_location || !String(form.field_location).trim()) return 'Field / Location is required.';
+    if (form.work_type === 'Other' && !String(form.work_description || '').trim()) return 'Work Description is required.';
     if (form.work_date > new Date().toISOString().slice(0, 10)) return 'Work date cannot be in the future.';
-    if (!(Number(form.area) > 0)) return 'Area must be greater than 0.';
+    if (!(Number(form.area) > 0)) {
+      // Acre is optional for Irrigation (time-based) and Other; mandatory for remaining work types.
+      if ((form.work_type === 'Irrigation' || form.work_type === 'Other') && (form.area === '' || form.area === null || form.area === undefined)) {
+        // leave empty: stored as NULL
+      } else {
+        return 'Area must be greater than 0.';
+      }
+    }
+    if (form.work_type === 'Irrigation') {
+      if (form.irrigation_hours === '' || !Number.isInteger(Number(form.irrigation_hours)) || Number(form.irrigation_hours) < 0) return 'Hours must be 0 or more.';
+      if (form.irrigation_minutes === '' || !Number.isInteger(Number(form.irrigation_minutes)) || Number(form.irrigation_minutes) < 0 || Number(form.irrigation_minutes) > 59) return 'Minutes must be between 0 and 59.';
+      if (form.hourly_rate === '' || !(Number(form.hourly_rate) >= 0)) return 'Rate per Hour must be 0 or more.';
+      return '';
+    }
+    if (form.work_type === 'Land Leveling' || AREA_RATE_TYPES.includes(form.work_type)) {
+      if (form.rate_per_acre === '' || !(Number(form.rate_per_acre) >= 0)) return 'Rate per Acre must be 0 or more.';
+      return '';
+    }
     if (!(Number(form.amount) >= 0) || form.amount === '') return 'Amount cannot be negative.';
     return '';
   }
@@ -102,9 +150,26 @@ export default function Works() {
       farmer: Number(form.farmer),
       work_type: form.work_type,
       work_date: form.work_date,
+      field_location: String(form.field_location).trim(),
+      remark: String(form.remark || '').trim(),
+      work_description: form.work_type === 'Other' ? String(form.work_description || '').trim() : null,
       area: form.area,
       amount: form.amount,
     };
+    if (form.work_type === 'Irrigation') {
+      payload.irrigation_hours = Number(form.irrigation_hours);
+      payload.irrigation_minutes = Number(form.irrigation_minutes);
+      payload.hourly_rate = form.hourly_rate;
+      payload.amount = irrigationTotal(form.irrigation_hours, form.irrigation_minutes, form.hourly_rate);
+      if (form.area === '' || form.area === null || form.area === undefined) payload.area = null;
+    }
+    if (form.work_type === 'Other' && (form.area === '' || form.area === null || form.area === undefined)) {
+      payload.area = null;
+    }
+    if (form.work_type === 'Land Leveling' || AREA_RATE_TYPES.includes(form.work_type)) {
+      payload.rate_per_acre = form.rate_per_acre;
+      payload.amount = landLevelingTotal(form.area, form.rate_per_acre);
+    }
     try {
       if (editingId) {
         await updateWork(editingId, payload);
@@ -115,16 +180,9 @@ export default function Works() {
       setForm(emptyForm);
       setEditingId(null);
       load(search.trim(), filterFarmer, filterType);
-    } catch (err) {
-      const data = err.response?.data;
-      if (data && typeof data === 'object') {
-        const firstKey = Object.keys(data)[0];
-        const val = data[firstKey];
-        const firstMsg = Array.isArray(val) ? val[0] : typeof val === 'string' ? val : JSON.stringify(val);
-        setFormError(`${firstKey}: ${firstMsg}`);
-      } else {
-        setFormError('Save failed. Check values and try again.');
-      }
+    } catch {
+      // Keep form data intact; show friendly message without technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -136,9 +194,25 @@ export default function Works() {
       await deleteWork(id);
       load(search.trim(), filterFarmer, filterType);
     } catch {
-      setError('Delete failed.');
+      setError('Delete failed. Please try again.');
     }
   }
+
+  const isIrrigation = form.work_type === 'Irrigation';
+  const isLandLeveling = form.work_type === 'Land Leveling';
+  const isAreaRate = AREA_RATE_TYPES.includes(form.work_type);
+  const isOther = form.work_type === 'Other';
+  const irrigationTotalValue = isIrrigation
+    ? irrigationTotal(form.irrigation_hours, form.irrigation_minutes, form.hourly_rate)
+    : '';
+  const landLevelingTotalValue = isLandLeveling
+    ? landLevelingTotal(form.area, form.rate_per_acre)
+    : '';
+  const areaRateTotalValue = isAreaRate
+    ? landLevelingTotal(form.area, form.rate_per_acre)
+    : '';
+  const isCalculated = isIrrigation || isLandLeveling || isAreaRate;
+  const calculatedTotal = isIrrigation ? irrigationTotalValue : isLandLeveling ? landLevelingTotalValue : areaRateTotalValue;
 
   function farmerName(id) {
     const f = farmers.find((x) => String(x.id) === String(id));
@@ -150,7 +224,6 @@ export default function Works() {
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/farmers" nextTo="/bills" />
       <h2 className="fw-bold">{t('Agricultural Work')}</h2>
-      <p className="text-muted">{t('Phase 4 – Work records linked to farmers.')}</p>
 
       <form className="row g-2 mb-3" onSubmit={handleSearch}>
         <div className="col-12 col-md-4">
@@ -183,7 +256,7 @@ export default function Works() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterFarmer, filterType)} />}
       {farmers.length === 0 && !loading && (
         <div className="alert alert-warning">
           {t('No farmers found. Add a farmer first in Farmer Management, then add work.')}
@@ -215,7 +288,11 @@ export default function Works() {
                   <select
                     className="form-select"
                     value={form.work_type}
-                    onChange={(e) => setForm({ ...form, work_type: e.target.value })}
+                    onChange={(e) => setForm({
+                      ...form,
+                      work_type: e.target.value,
+                      work_description: e.target.value === 'Other' ? form.work_description : '',
+                    })}
                   >
                     <option value="">{t('Select type')}</option>
                     {WORK_TYPES.map((wt) => (
@@ -232,8 +309,36 @@ export default function Works() {
                     onChange={(e) => setForm({ ...form, work_date: e.target.value })}
                   />
                 </div>
+                <div className="col-12 col-md-4">
+                  <label className="form-label">{t('Field / Location')} *</label>
+                  <input
+                    className="form-control"
+                    value={form.field_location}
+                    onChange={(e) => setForm({ ...form, field_location: e.target.value })}
+                  />
+                </div>
+                <div className="col-12 col-md-4">
+                  <label className="form-label">{t('Remark')}</label>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    value={form.remark}
+                    onChange={(e) => setForm({ ...form, remark: e.target.value })}
+                  />
+                </div>
+                {isOther && (
+                  <div className="col-12">
+                    <label className="form-label">{t('Work Description')} *</label>
+                    <textarea
+                      className="form-control"
+                      rows={2}
+                      value={form.work_description}
+                      onChange={(e) => setForm({ ...form, work_description: e.target.value })}
+                    />
+                  </div>
+                )}
                 <div className="col-6 col-md-4">
-                  <label className="form-label">{t('Area (acres) *')}</label>
+                  <label className="form-label">{(isIrrigation || isOther) ? t('Area (acres)') : t('Area (acres) *')}</label>
                   <input
                     type="number" step="0.01" min="0"
                     className="form-control"
@@ -242,14 +347,60 @@ export default function Works() {
                   />
                 </div>
                 <div className="col-6 col-md-4">
-                  <label className="form-label">{t('Amount (Rs) *')}</label>
+                  <label className="form-label">{isCalculated ? t('Total Amount') : isOther ? `${t('Total Amount')} (Rs) *` : t('Amount (Rs) *')}</label>
                   <input
                     type="number" step="0.01" min="0"
                     className="form-control"
-                    value={form.amount}
+                    value={isCalculated ? calculatedTotal : form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    readOnly={isCalculated}
                   />
                 </div>
+                {(isLandLeveling || isAreaRate) && (
+                  <div className="col-6 col-md-4">
+                    <label className="form-label">{t('Rate per Acre')} (Rs) *</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      className="form-control"
+                      value={form.rate_per_acre}
+                      onChange={(e) => setForm({ ...form, rate_per_acre: e.target.value })}
+                    />
+                  </div>
+                )}
+                {isIrrigation && (
+                  <>
+                    <div className="col-12">
+                      <h6 className="fw-semibold mb-0 mt-1">{t('Irrigation Duration')}</h6>
+                    </div>
+                    <div className="col-6 col-md-4">
+                      <label className="form-label">{t('Hours')} *</label>
+                      <input
+                        type="number" step="1" min="0"
+                        className="form-control"
+                        value={form.irrigation_hours}
+                        onChange={(e) => setForm({ ...form, irrigation_hours: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-6 col-md-4">
+                      <label className="form-label">{t('Minutes')} *</label>
+                      <input
+                        type="number" step="1" min="0" max="59"
+                        className="form-control"
+                        value={form.irrigation_minutes}
+                        onChange={(e) => setForm({ ...form, irrigation_minutes: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-12 col-md-4">
+                      <label className="form-label">{t('Rate per Hour')} (Rs) *</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        className="form-control"
+                        value={form.hourly_rate}
+                        onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
@@ -267,7 +418,7 @@ export default function Works() {
       {loading ? (
         <p className="text-muted">{t('Loading work records...')}</p>
       ) : works.length === 0 ? (
-        <div className="alert alert-info">{t('No work records found. Click Add Work.')}</div>
+        <EmptyState message="No work records found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered">

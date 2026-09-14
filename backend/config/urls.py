@@ -26,4 +26,14 @@ urlpatterns = [
     path('api/', include('billing.urls')),
     path('api/', include('payments.urls')),
     path('api/', include('expenses.urls')),
+    path('api/', include('support.urls')),
 ]
+
+# Uploaded screenshots are served by Django only in DEBUG (local use).
+# Production deployments need separate media serving for MEDIA_ROOT.
+from django.conf import settings
+
+if settings.DEBUG:
+    from django.conf.urls.static import static
+
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

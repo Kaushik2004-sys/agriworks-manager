@@ -153,16 +153,20 @@ class BusinessSmokeTests(APITestCase):
         self.assertEqual(res.status_code, 400)
         res = self.client.get('/api/farmers/')
         self.assertEqual(len(res.data), 1)
-        # Work linked to farmer.
+        # Work linked to farmer (area-based auto total: 2.00 x 5000 = 10000.00).
         res = self.client.post('/api/works/', {
             'farmer': farmer, 'work_type': 'Ploughing',
-            'work_date': '2026-09-10', 'area': '2.00', 'amount': '10000.00',
+            'work_date': '2026-09-10', 'area': '2.00',
+            'rate_per_acre': '5000.00', 'amount': '10000.00',
+            'field_location': 'North Field', 'remark': 'Soil was slightly wet',
         }, format='json')
         self.assertEqual(res.status_code, 201)
         work = res.data['id']
         res = self.client.post('/api/works/', {
             'farmer': 99999, 'work_type': 'Ploughing',
-            'work_date': '2026-09-10', 'area': '1.00', 'amount': '100.00',
+            'work_date': '2026-09-10', 'area': '1.00',
+            'rate_per_acre': '100.00', 'amount': '100.00',
+            'field_location': 'North Field',
         }, format='json')
         self.assertEqual(res.status_code, 400)
         # Bill from work; duplicate blocked.
@@ -208,3 +212,118 @@ class BusinessSmokeTests(APITestCase):
         # Dashboard reflects the chain.
         res = self.client.get('/api/dashboard/')
         self.assertEqual(res.data['totals']['pending'], '0')
+
+
+class AdminOverviewTests(APITestCase):
+    def auth_as(self, username, superuser=False, staff=False):
+        user = User.objects.create_user(username=username, email=f'{username}@t.com', password='pw123456')
+        user.is_staff = staff or superuser
+        user.is_superuser = superuser
+        user.save()
+        token = Token.objects.create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        return user
+
+    def test_overview_permissions(self):
+        self.auth_as('normal')
+        self.assertEqual(self.client.get('/api/admin/overview/').status_code, 403)
+        self.auth_as('staffer', staff=True)
+        self.assertEqual(self.client.get('/api/admin/overview/').status_code, 403)
+        self.client.credentials()
+        res = self.client.get('/api/admin/overview/')
+        self.assertEqual(res.status_code, 401)
+
+    def test_overview_values(self):
+        self.auth_as('admin', superuser=True)
+        res = self.client.get('/api/admin/overview/')
+        self.assertEqual(res.status_code, 200)
+        totals = res.data['totals']
+        for key in ('users', 'problem_reports'):
+            self.assertIn(key, totals)
+        body = res.data
+        self.assertIn('pending', body['problem_reports'])
+        self.assertIn('recent_users', body)
+        self.assertIn('recent_reports', body)
+        self.assertEqual(body['system']['api'], 'ok')
+        self.assertNotIn('password', str(res.data))
+        self.assertNotIn('token', str(res.data).lower())
+
+
+class LoginHistoryTests(APITestCase):
+    def make_login_user(self, username, superuser=False, staff=False):
+        user = User.objects.create_user(username=username, email=f'{username}@t.com', password='pw123456')
+        user.is_staff = staff or superuser
+        user.is_superuser = superuser
+        user.save()
+        return user
+
+    def do_login(self, username, password='pw123456'):
+        return self.client.post('/api/login/', {'username': username, 'password': password}, format='json')
+
+    def test_login_creates_exactly_one_record(self):
+        from accounts.models import LoginHistory
+        self.make_login_user('hist1')
+        self.assertEqual(LoginHistory.objects.count(), 0)
+        res = self.do_login('hist1')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('token', res.data)
+        self.assertEqual(LoginHistory.objects.count(), 1)
+        rec = LoginHistory.objects.get()
+        self.assertEqual(rec.user.username, 'hist1')
+        self.assertEqual(rec.status, 'Successful')
+        self.assertIsNotNone(rec.created_at)
+
+    def test_repeat_login_appends_and_keeps_previous(self):
+        from accounts.models import LoginHistory
+        self.make_login_user('hist2')
+        self.do_login('hist2')
+        first = LoginHistory.objects.get()
+        first_created = first.created_at
+        self.do_login('hist2')
+        self.assertEqual(LoginHistory.objects.count(), 2)
+        first.refresh_from_db()
+        self.assertEqual(first.created_at, first_created)
+
+    def test_logout_keeps_history_and_failed_login_skipped(self):
+        from accounts.models import LoginHistory
+        self.make_login_user('hist3')
+        res = self.do_login('hist3')
+        token = res.data['token']
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+        self.client.post('/api/logout/')
+        self.assertEqual(LoginHistory.objects.count(), 1)
+        self.client.credentials()
+        res = self.do_login('hist3', password='wrong')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(LoginHistory.objects.count(), 1)
+
+    def test_history_endpoint_permissions_and_order(self):
+        from accounts.models import LoginHistory
+        admin = self.make_login_user('boss', superuser=True)
+        self.make_login_user('normal')
+        staffer = self.make_login_user('staffer', staff=True)
+        self.do_login('normal')
+        self.do_login('normal')
+        self.do_login('boss')
+        self.assertEqual(LoginHistory.objects.count(), 3)
+        token = Token.objects.get(user=admin)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        res = self.client.get('/api/admin/login-history/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 3)
+        ids = [r['id'] for r in res.data]
+        self.assertEqual(ids, sorted(ids, reverse=True))
+        row = res.data[0]
+        for key in ('username', 'email', 'login_date', 'login_time', 'status'):
+            self.assertIn(key, row)
+        blob = str(res.data)
+        self.assertNotIn('password', blob)
+        self.assertNotIn('token', blob.lower())
+        token2 = Token.objects.get(user__username='normal')
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token2.key)
+        self.assertEqual(self.client.get('/api/admin/login-history/').status_code, 403)
+        token3, _ = Token.objects.get_or_create(user=staffer)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token3.key)
+        self.assertEqual(self.client.get('/api/admin/login-history/').status_code, 403)
+        self.client.credentials()
+        self.assertEqual(self.client.get('/api/admin/login-history/').status_code, 401)

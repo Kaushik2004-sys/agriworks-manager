@@ -2,6 +2,7 @@
 // Uses existing Bootstrap styling and language system (t() for EN/HI/MR).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const FAQS = [
@@ -48,6 +49,7 @@ const FAQS = [
 ];
 
 export default function FAQ() {
+  const { user } = useAuth();
   const { t } = useLanguage();
   const [open, setOpen] = useState('what-is');
 
@@ -59,10 +61,6 @@ export default function FAQ() {
     <div className="container py-4">
       <h2 className="fw-bold">{t('Frequently Asked Questions')}</h2>
       <p className="text-muted">{t('Common questions about using AgriWorks Manager.')}</p>
-
-      <div className="alert alert-info small">
-        {t('This page provides information only. No data is created or modified here.')}
-      </div>
 
       <div className="accordion mb-4" id="faqAccordion">
         {FAQS.map((f) => (
@@ -87,11 +85,22 @@ export default function FAQ() {
       <div className="card">
         <div className="card-body text-center">
           <p className="small text-muted mb-2">{t('Learn more about the application or get started today.')}</p>
-          <div className="d-flex gap-2 justify-content-center flex-wrap">
-            <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
-            <Link to="/about" className="btn btn-outline-success btn-sm">{t('About AgriWorks')}</Link>
-            <Link to="/login" className="btn btn-success btn-sm">{t('Get Started')}</Link>
-            <Link to="/privacy" className="btn btn-success btn-sm">{t('Next')}</Link>
+          <div className={user ? 'd-flex gap-2 justify-content-between flex-wrap' : 'd-flex gap-2 justify-content-center flex-wrap'}>
+            {user ? (
+              <>
+                <Link to="/help-support" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to={user.is_superuser ? '/admin/dashboard' : '/'} className="btn btn-success btn-sm">{t('Go to Dashboard')}</Link>
+                <Link to="/privacy" className="btn btn-success btn-sm">{t('Next')} &rarr;</Link>
+              </>
+            ) : (
+              <>
+                <Link to="/help-support" className="btn btn-outline-success btn-sm">&larr; {t('Back')}</Link>
+                <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
+                <Link to="/about" className="btn btn-outline-success btn-sm">{t('About AgriWorks')}</Link>
+                <Link to="/login" className="btn btn-success btn-sm">{t('Get Started')}</Link>
+                <Link to="/privacy" className="btn btn-success btn-sm">{t('Next')}</Link>
+              </>
+            )}
           </div>
         </div>
       </div>

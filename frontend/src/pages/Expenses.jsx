@@ -2,6 +2,8 @@
 // Diesel, Maintenance, Driver Wages, Other with amount/date/description.
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses, updateExpense } from '../services/expenses';
 
@@ -27,7 +29,7 @@ export default function Expenses() {
       const data = await listExpenses({ search: searchText.trim(), expense_type: type });
       setExpenses(Array.isArray(data) ? data : data.results || []);
     } catch {
-      setError('Cannot load expenses. Check backend is running.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -94,16 +96,9 @@ export default function Expenses() {
       setForm(emptyForm);
       setEditingId(null);
       load(search.trim(), filterType);
-    } catch (err) {
-      const data = err.response?.data;
-      if (data && typeof data === 'object') {
-        const firstKey = Object.keys(data)[0];
-        const val = data[firstKey];
-        const firstMsg = Array.isArray(val) ? val[0] : typeof val === 'string' ? val : JSON.stringify(val);
-        setFormError(`${firstKey}: ${firstMsg}`);
-      } else {
-        setFormError('Save failed. Check values and try again.');
-      }
+    } catch {
+      // Keep form data intact; show friendly message without technical details.
+      setFormError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -115,7 +110,7 @@ export default function Expenses() {
       await deleteExpense(id);
       load(search.trim(), filterType);
     } catch {
-      setError('Delete failed.');
+      setError('Delete failed. Please try again.');
     }
   }
 
@@ -126,7 +121,6 @@ export default function Expenses() {
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/payments" nextTo="/reports" />
       <h2 className="fw-bold">{t('Expense Management')}</h2>
-      <p className="text-muted">{t('Phase 7 – Diesel, maintenance, wages and other expenses.')}</p>
 
       <form className="row g-2 mb-3" onSubmit={handleSearch}>
         <div className="col-12 col-md-5">
@@ -151,7 +145,7 @@ export default function Expenses() {
         </div>
       </form>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterType)} />}
 
       <div className="alert alert-secondary">{t('Total shown:')} <b>Rs {total.toFixed(2)}</b> ({expenses.length} {t('records')})</div>
 
@@ -219,7 +213,7 @@ export default function Expenses() {
       {loading ? (
         <p className="text-muted">{t('Loading expenses...')}</p>
       ) : expenses.length === 0 ? (
-        <div className="alert alert-info">{t('No expenses found. Click Add Expense.')}</div>
+        <EmptyState message="No expenses found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered">

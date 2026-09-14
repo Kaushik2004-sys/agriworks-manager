@@ -44,7 +44,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="container py-4">
-        <h2 className="fw-bold">{t('Welcome,')} {user?.username}</h2>
+        <h2 className="fw-bold">{t('Welcome,')} {user?.profile?.full_name || ''}</h2>
         <div className="alert alert-danger mt-3">{t(error)}</div>
       </div>
     );
@@ -59,9 +59,8 @@ export default function Dashboard() {
 
   return (
     <div className="container py-4">
-      <h2 className="fw-bold">{t('Welcome,')} {user?.username}</h2>
+      <h2 className="fw-bold">{t('Welcome,')} {user?.profile?.full_name || ''}</h2>
       {company && <p className="mb-0 fw-semibold">{company}</p>}
-      <p className="text-muted">{t('Phase 8 – Business summary from actual records.')}</p>
 
       <div className="row g-2 mb-3">
         <StatCard icon={<StatIcon name="work" />} label={t('Work Records')} value={totals.works} link="/dashboard/work-records" linkText={t('Work')} />

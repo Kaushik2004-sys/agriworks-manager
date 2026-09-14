@@ -1,7 +1,7 @@
 // Phase 4: Work API helpers (token attached by api.js interceptor).
 import api from './api';
 
-export const WORK_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation'];
+export const WORK_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting', 'Irrigation', 'Other', 'Land Leveling'];
 
 export async function listWorks({ search = '', farmer = '', work_type = '' } = {}) {
   const params = {};
