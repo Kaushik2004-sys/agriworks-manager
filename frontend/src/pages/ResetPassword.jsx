@@ -1,7 +1,7 @@
 // Auth update: Reset Password page.
 // Reads uid/token from the reset link (?uid=&token=), sets the new password
 // through the Django backend (never frontend-only).
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { confirmPasswordReset } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -16,11 +16,21 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setOk('');
     if (!uid || !token) {
       setError('Reset link is invalid or expired.');
       return;
@@ -43,8 +53,13 @@ export default function ResetPassword() {
       const data = await confirmPasswordReset({
         uid, token, new_password: newPassword, confirm_password: confirmPassword,
       });
-      alert(data.message || 'Password has been reset. Please log in.');
-      navigate('/login', { replace: true });
+      // Inline success (no native alert); then continue to Login as before.
+      if (mounted.current) {
+        setOk(data.message || 'Password has been reset. Please log in.');
+        setTimeout(() => {
+          if (mounted.current) navigate('/login', { replace: true });
+        }, 1500);
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Reset failed. The link may be expired.');
     } finally {
@@ -58,6 +73,7 @@ export default function ResetPassword() {
       <p className="text-muted">{t('Set a new password for your account.')}</p>
 
       {error && <div className="alert alert-danger">{t(error)}</div>}
+      {ok && <div className="alert alert-success">{t(ok)}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">

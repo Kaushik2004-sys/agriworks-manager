@@ -110,7 +110,7 @@ export default function Bills() {
     if (!form.work) return 'Work record is required.';
     if (!form.bill_date) return 'Bill date is required.';
     if (form.bill_date > new Date().toISOString().slice(0, 10)) return 'Bill date cannot be in the future.';
-    if (form.total_amount === '' || !(Number(form.total_amount) >= 0)) return 'Total amount cannot be negative.';
+    if (form.total_amount === '' || !(Number(form.total_amount) > 0)) return 'Total amount must be greater than 0.';
     return '';
   }
 
