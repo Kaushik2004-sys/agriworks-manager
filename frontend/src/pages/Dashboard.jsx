@@ -55,7 +55,7 @@ export default function Dashboard() {
   const recentWorks = data?.recent_works || [];
   const recentPayments = data?.recent_payments || [];
   const recentExpenses = data?.recent_expenses || [];
-  const company = data?.business?.company_name || user?.company_name || '';
+  const company = data?.business?.company_name || user?.profile?.company_name || '';
 
   return (
     <div className="container py-4">
@@ -63,12 +63,12 @@ export default function Dashboard() {
       {company && <p className="mb-0 fw-semibold">{company}</p>}
 
       <div className="row g-2 mb-3">
-        <StatCard icon={<StatIcon name="work" />} label={t('Work Records')} value={totals.works} link="/dashboard/work-records" linkText={t('Work')} />
-        <StatCard icon={<StatIcon name="income" />} label={t('Total Income (billed)')} value={`Rs ${totals.income}`} link="/dashboard/income" linkText={t('Bills')} />
-        <StatCard icon={<StatIcon name="payment" />} label={t('Payments Received')} value={`Rs ${totals.received}`} link="/dashboard/payments" linkText={t('Payments')} />
-        <StatCard icon={<StatIcon name="pending" />} label={t('Pending Payments')} value={`Rs ${totals.pending}`} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
-        <StatCard icon={<StatIcon name="expense" />} label={t('Total Expenses')} value={`Rs ${totals.expenses}`} link="/dashboard/expenses" linkText={t('Expenses')} />
-        <StatCard icon={<StatIcon name="farmers" />} label={t('Farmers')} value={totals.farmers} link="/dashboard/farmers" linkText={t('Farmers')} />
+        <StatCard icon={<StatIcon name="work" />} label={t('Work Records')} value={totals.works ?? '—'} link="/dashboard/work-records" linkText={t('Work')} />
+        <StatCard icon={<StatIcon name="income" />} label={t('Total Income (billed)')} value={`Rs ${totals.income ?? '—'}`} link="/dashboard/income" linkText={t('Bills')} />
+        <StatCard icon={<StatIcon name="payment" />} label={t('Payments Received')} value={`Rs ${totals.received ?? '—'}`} link="/dashboard/payments" linkText={t('Payments')} />
+        <StatCard icon={<StatIcon name="pending" />} label={t('Pending Payments')} value={`Rs ${totals.pending ?? '—'}`} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
+        <StatCard icon={<StatIcon name="expense" />} label={t('Total Expenses')} value={`Rs ${totals.expenses ?? '—'}`} link="/dashboard/expenses" linkText={t('Expenses')} />
+        <StatCard icon={<StatIcon name="farmers" />} label={t('Farmers')} value={totals.farmers ?? '—'} link="/dashboard/farmers" linkText={t('Farmers')} />
       </div>
 
       <div className="row g-3">

@@ -69,6 +69,12 @@ export default function Payments() {
     loadPayments(selectedBill);
   }
 
+  // Keep the selected bill in sync when the ?bill= URL changes during SPA navigation.
+  const billParam = searchParams.get('bill') || '';
+  useEffect(() => {
+    setSelectedBill(billParam);
+  }, [billParam]);
+
   useEffect(() => {
     loadBills();
   }, []);

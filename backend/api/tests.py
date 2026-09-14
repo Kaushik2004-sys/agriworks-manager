@@ -327,3 +327,43 @@ class LoginHistoryTests(APITestCase):
         self.assertEqual(self.client.get('/api/admin/login-history/').status_code, 403)
         self.client.credentials()
         self.assertEqual(self.client.get('/api/admin/login-history/').status_code, 401)
+
+
+class BillTotalValidationTests(APITestCase):
+    def setUp(self):
+        make_user(self.client)
+        res = self.client.post('/api/farmers/', {'name': 'Bill Test', 'mobile': '9998887776', 'village': 'V'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        farmer = res.data['id']
+        self.farmer = farmer
+        res = self.client.post('/api/works/', {'farmer': farmer, 'work_type': 'Ploughing', 'work_date': '2026-09-10', 'area': '2.00', 'rate_per_acre': '5000.00', 'amount': '10000.00', 'field_location': 'North Field'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.work = res.data['id']
+        res = self.client.post('/api/bills/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '10000.00'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.bill = res.data['id']
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-12', 'method': 'Cash', 'amount': '3000.00'}, format='json')
+        self.assertEqual(res.status_code, 201)
+
+    def test_lower_total_below_paid_rejected(self):
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '2000.00'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('total_amount', res.data)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')
+        self.assertEqual(res.data['status'], 'Partial')
+
+    def test_zero_total_rejected_on_create_and_update(self):
+        res = self.client.post('/api/works/', {'farmer': self.farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
+        work2 = res.data['id']
+        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-11', 'total_amount': '0'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '0'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_raise_total_keeps_status_correct(self):
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '12000.00'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['pending_amount'], '9000.00')
+        self.assertEqual(res.data['status'], 'Partial')

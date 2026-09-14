@@ -38,6 +38,19 @@
   box-shadow: var(--bs-box-shadow-sm);
 }
 
+/* On-screen report tables: never crush columns into vertical stacks.
+   Headers stay on one readable line and wide tables scroll
+   horizontally inside .table-responsive. Data cells still wrap
+   at word boundaries instead of splitting mid-word.
+   (The @media print rules below separately fit tables to A4.) */
+.report-print-table .table th {
+  white-space: nowrap;
+}
+
+.report-print-table .table td {
+  overflow-wrap: break-word;
+}
+
 /* Reports print output only — screen UI is unchanged (all rules scoped
    inside @media print; screen uses d-print-none / d-print-block utilities).
    A4 landscape fits wide agricultural tables without shrinking text. */
@@ -117,15 +130,19 @@
   }
 
   /* Report table: full width, readable, B&W-friendly borders.
-     Header repeats on every page; rows avoid awkward splits. */
+     Header repeats on every page; rows avoid awkward splits.
+     Small type + tight padding so many-column reports (e.g. work
+     records with location/remark/rate columns) fit A4 landscape
+     without crushing headers into per-letter stacks. */
   .report-print-table {
     overflow: visible !important;
   }
 
   .report-print-table .table {
     width: 100%;
-    font-size: 10pt;
+    font-size: 8pt;
     font-variant-numeric: tabular-nums;
+    table-layout: auto;
   }
 
   .report-print-table thead {
@@ -139,6 +156,12 @@
   .report-print-table th,
   .report-print-table td {
     border: 1px solid #495057 !important;
-    padding: 4px 6px;
+    padding: 2px 3px;
+    white-space: normal;
+    vertical-align: top;
+    /* Override the screen-only anywhere-wrapping so words break
+       at spaces first instead of stacking letter by letter. */
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 }

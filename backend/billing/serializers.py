@@ -56,8 +56,8 @@ class BillSerializer(serializers.ModelSerializer):
         return value
 
     def validate_total_amount(self, value):
-        if value is None or Decimal(value) < 0:
-            raise serializers.ValidationError('Total amount cannot be negative.')
+        if value is None or Decimal(value) <= 0:
+            raise serializers.ValidationError('Total amount must be greater than 0.')
         return value
 
     def validate(self, attrs):
@@ -80,4 +80,15 @@ class BillSerializer(serializers.ModelSerializer):
         # Default total to work amount if not given
         if work and attrs.get('total_amount') is None:
             attrs['total_amount'] = work.amount
+        # Total must be positive however it was provided (explicit or defaulted).
+        if attrs.get('total_amount') is not None and Decimal(attrs['total_amount']) <= 0:
+            raise serializers.ValidationError(
+                {'total_amount': 'Total amount must be greater than 0.'})
+        # Never allow lowering the total below what is already paid
+        # (prevents negative pending amounts and wrong Paid status).
+        if self.instance is not None and attrs.get('total_amount') is not None:
+            paid = self.instance.get_paid_amount()
+            if Decimal(attrs['total_amount']) < Decimal(paid):
+                raise serializers.ValidationError(
+                    {'total_amount': 'Total amount cannot be less than the paid amount.'})
         return attrs

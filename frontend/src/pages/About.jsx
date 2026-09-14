@@ -59,8 +59,8 @@ export default function About() {
             ) : (
               <>
                 <Link to="/" className="btn btn-outline-success btn-sm">{t('Back to Home')}</Link>
-                <a href="/login" className="btn btn-success btn-sm">{t('Get Started')}</a>
-                <a href="/signup" className="btn btn-outline-success btn-sm">{t('Create Account')}</a>
+                <Link to="/login" className="btn btn-success btn-sm">{t('Get Started')}</Link>
+                <Link to="/signup" className="btn btn-outline-success btn-sm">{t('Create Account')}</Link>
                 <Link to="/help-support" className="btn btn-success btn-sm">{t('Next')}</Link>
               </>
             )}
