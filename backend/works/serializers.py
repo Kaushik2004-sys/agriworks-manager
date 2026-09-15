@@ -1,9 +1,42 @@
 # Phase 4: Work serializer with validation.
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from rest_framework import serializers
 from farmers.models import Farmer
 from .models import Work
+
+RATE_PER_ACRE_ERROR = 'Rate per Acre must be a whole number of at least Rs 1.'
+RATE_PER_HOUR_ERROR = 'Rate per Hour must be a whole number of at least Rs 1.'
+
+
+def validate_whole_rate_per_acre(value):
+    """Rate per Acre accepts whole rupees only, minimum Rs 1.
+
+    Rejects 0, negatives, and decimals (e.g. 1000.50) even on direct
+    API calls. Values like '5000.00' pass because they are whole.
+    """
+    try:
+        dec = Decimal(value)
+    except Exception:
+        raise serializers.ValidationError(RATE_PER_ACRE_ERROR)
+    if not dec.is_finite() or dec < 1 or dec != dec.to_integral_value():
+        raise serializers.ValidationError(RATE_PER_ACRE_ERROR)
+    return value
+
+
+def validate_whole_rate_per_hour(value):
+    """Rate per Hour accepts whole rupees only, minimum Rs 1.
+
+    Rejects 0, negatives, decimals (e.g. 500.50) and invalid text
+    even on direct API calls. Values like '1000.00' pass as whole.
+    """
+    try:
+        dec = Decimal(value)
+    except Exception:
+        raise serializers.ValidationError(RATE_PER_HOUR_ERROR)
+    if not dec.is_finite() or dec < 1 or dec != dec.to_integral_value():
+        raise serializers.ValidationError(RATE_PER_HOUR_ERROR)
+    return value
 
 
 class WorkSerializer(serializers.ModelSerializer):
@@ -50,11 +83,32 @@ class WorkSerializer(serializers.ModelSerializer):
         return value
 
     def validate_area(self, value):
+        # Area accepts decimal acres (e.g. 0.5, 1.25); rejects 0,
+        # negatives, empty and invalid text. None stays None so
+        # Irrigation/Other can leave it empty (stored as NULL).
         if value is None:
             return value
-        if Decimal(value) <= 0:
+        try:
+            dec = Decimal(value)
+        except Exception:
+            raise serializers.ValidationError('Area must be greater than 0.')
+        if not dec.is_finite() or dec <= 0:
             raise serializers.ValidationError('Area must be greater than 0.')
         return value
+
+    def validate_rate_per_acre(self, value):
+        # Whole-rupee rates only (minimum Rs 1). None stays None so
+        # Irrigation/Other can leave it empty (stored as NULL).
+        if value is None:
+            return value
+        return validate_whole_rate_per_acre(value)
+
+    def validate_hourly_rate(self, value):
+        # Whole-rupee rates only (minimum Rs 1). None stays None so
+        # non-Irrigation types can leave it empty (stored as NULL).
+        if value is None:
+            return value
+        return validate_whole_rate_per_hour(value)
 
     def validate_amount(self, value):
         if value is None or Decimal(value) < 0:
@@ -102,72 +156,127 @@ class WorkSerializer(serializers.ModelSerializer):
             elif isinstance(minutes, bool) or not isinstance(minutes, int) or minutes < 0 or minutes > 59:
                 errors['irrigation_minutes'] = 'Minutes must be between 0 and 59.'
             if rate is None:
-                errors['hourly_rate'] = 'Rate per Hour must be 0 or more.'
-            elif Decimal(rate) < 0:
-                errors['hourly_rate'] = 'Rate per Hour must be 0 or more.'
+                errors['hourly_rate'] = RATE_PER_HOUR_ERROR
+            else:
+                try:
+                    validate_whole_rate_per_hour(rate)
+                except serializers.ValidationError as exc:
+                    errors['hourly_rate'] = exc.detail[0] if hasattr(exc.detail, '__getitem__') else exc.detail
             if errors:
                 raise serializers.ValidationError(errors)
-            from decimal import ROUND_HALF_UP
             total = (Decimal(hours) + Decimal(minutes) / Decimal(60)) * Decimal(rate)
             attrs['amount'] = total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             attrs['rate_per_acre'] = None
             attrs['work_description'] = None
         elif work_type == 'Land Leveling':
             # Land Leveling: Total = Area x Rate per Acre, computed server-side.
+            # Area accepts decimals (> 0); rate accepts whole rupees (>= Rs 1).
             area = attrs.get('area')
             rate = attrs.get('rate_per_acre')
             errors = {}
             if area in (None, ''):
                 errors['area'] = 'Area must be greater than 0.'
-            elif Decimal(area) <= 0:
-                errors['area'] = 'Area must be greater than 0.'
+            else:
+                try:
+                    if not Decimal(area).is_finite() or Decimal(area) <= 0:
+                        errors['area'] = 'Area must be greater than 0.'
+                except Exception:
+                    errors['area'] = 'Area must be greater than 0.'
             if rate in (None, ''):
-                errors['rate_per_acre'] = 'Rate per Acre must be 0 or more.'
-            elif Decimal(rate) < 0:
-                errors['rate_per_acre'] = 'Rate per Acre must be 0 or more.'
+                errors['rate_per_acre'] = RATE_PER_ACRE_ERROR
+            else:
+                try:
+                    validate_whole_rate_per_acre(rate)
+                except serializers.ValidationError as exc:
+                    errors['rate_per_acre'] = exc.detail[0] if hasattr(exc.detail, '__getitem__') else exc.detail
             if errors:
                 raise serializers.ValidationError(errors)
-            from decimal import ROUND_HALF_UP
             attrs['amount'] = (Decimal(area) * Decimal(rate)).quantize(
-                Decimal('0.01'), rounding=ROUND_HALF_UP)
+                Decimal('1'), rounding=ROUND_HALF_UP)
             attrs['irrigation_hours'] = None
             attrs['irrigation_minutes'] = None
             attrs['hourly_rate'] = None
             attrs['work_description'] = None
         elif work_type in ('Ploughing', 'Rotavator', 'Cultivation', 'Harvesting'):
             # Area-based types: Total = Area x Rate per Acre, computed server-side.
+            # Area accepts decimals (> 0); rate accepts whole rupees (>= Rs 1).
             area = attrs.get('area')
             rate = attrs.get('rate_per_acre')
             errors = {}
             if area in (None, ''):
                 errors['area'] = 'Area must be greater than 0.'
-            elif Decimal(area) <= 0:
-                errors['area'] = 'Area must be greater than 0.'
+            else:
+                try:
+                    if not Decimal(area).is_finite() or Decimal(area) <= 0:
+                        errors['area'] = 'Area must be greater than 0.'
+                except Exception:
+                    errors['area'] = 'Area must be greater than 0.'
             if rate in (None, ''):
-                errors['rate_per_acre'] = 'Rate per Acre must be 0 or more.'
-            elif Decimal(rate) < 0:
-                errors['rate_per_acre'] = 'Rate per Acre must be 0 or more.'
+                errors['rate_per_acre'] = RATE_PER_ACRE_ERROR
+            else:
+                try:
+                    validate_whole_rate_per_acre(rate)
+                except serializers.ValidationError as exc:
+                    errors['rate_per_acre'] = exc.detail[0] if hasattr(exc.detail, '__getitem__') else exc.detail
             if errors:
                 raise serializers.ValidationError(errors)
-            from decimal import ROUND_HALF_UP
             attrs['amount'] = (Decimal(area) * Decimal(rate)).quantize(
-                Decimal('0.01'), rounding=ROUND_HALF_UP)
+                Decimal('1'), rounding=ROUND_HALF_UP)
             attrs['irrigation_hours'] = None
             attrs['irrigation_minutes'] = None
             attrs['hourly_rate'] = None
             attrs['work_description'] = None
         else:
-            # 'Other': manual Total Amount (required, unchanged); Work Description required.
+            # 'Other': manual Total Amount as whole rupees; Work Description required.
             # Acre is OPTIONAL for Other: blank accepted, entered values must be > 0.
+            # Rate per Acre is OPTIONAL for Other: blank accepted (stored as NULL),
+            # entered values must be whole rupees (>= Rs 1), same rule as other types.
             if attrs.get('area') in (None, ''):
                 attrs['area'] = None
+            rate = attrs.get('rate_per_acre')
+            if rate in (None, ''):
+                attrs['rate_per_acre'] = None
+            else:
+                try:
+                    validate_whole_rate_per_acre(rate)
+                except serializers.ValidationError as exc:
+                    raise serializers.ValidationError({
+                        'rate_per_acre': exc.detail[0] if hasattr(exc.detail, '__getitem__') else exc.detail})
             desc = attrs.get('work_description')
             if desc is None or not str(desc).strip():
                 raise serializers.ValidationError(
                     {'work_description': 'Work Description is required.'})
             attrs['work_description'] = str(desc).strip()
+            # Total Amount for Other is entered manually but billed in whole
+            # rupees, so decimals are rejected (e.g. 1500.50) and the stored
+            # value is normalized to whole rupees.
+            amt = attrs.get('amount')
+            if amt in (None, ''):
+                raise serializers.ValidationError({
+                    'amount': 'Total Amount must be a whole number of at least Rs 1.'})
+            try:
+                dec_amt = Decimal(amt)
+            except Exception:
+                raise serializers.ValidationError({
+                    'amount': 'Total Amount must be a whole number of at least Rs 1.'})
+            if not dec_amt.is_finite() or dec_amt < 1 or dec_amt != dec_amt.to_integral_value():
+                raise serializers.ValidationError({
+                    'amount': 'Total Amount must be a whole number of at least Rs 1.'})
+            attrs['amount'] = dec_amt.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
             attrs['irrigation_hours'] = None
             attrs['irrigation_minutes'] = None
             attrs['hourly_rate'] = None
-            attrs['rate_per_acre'] = None
+        # Duplicate prevention (create only): the same user cannot save the
+        # same work type twice on the same work date. Runs after all existing
+        # validations so their errors stay unchanged. Updates stay locked
+        # (405), so no exclude-self handling is needed. Application-level
+        # check only — no schema change. Compares real date values.
+        if self.instance is None and request is not None:
+            dup_type = attrs.get('work_type')
+            dup_date = attrs.get('work_date')
+            if dup_type and dup_date and Work.objects.filter(
+                    user=request.user, work_type=dup_type,
+                    work_date=dup_date).exists():
+                raise serializers.ValidationError({
+                    'work_date': 'A work entry for this work type already exists on this date.'})
         return attrs

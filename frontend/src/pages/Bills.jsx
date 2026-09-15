@@ -7,7 +7,7 @@ import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
-import { createBill, deleteBill, listBills, listUnbilledWorks, updateBill } from '../services/bills';
+import { createBill, deleteBill, listBills, listUnbilledWorks } from '../services/bills';
 import { listWorks } from '../services/works';
 
 const STATUS_OPTIONS = ['Unpaid', 'Partial', 'Paid'];
@@ -22,7 +22,6 @@ export default function Bills() {
   const [error, setError] = useState('');
 
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null); // bill object when editing
   const [form, setForm] = useState({ work: '', bill_date: '', total_amount: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,29 +59,18 @@ export default function Bills() {
   }
 
   function startAdd() {
-    setEditing(null);
-    setForm({ work: '', bill_date: new Date().toISOString().slice(0, 10), total_amount: '' });
+    setForm({ work: '', bill_date: '', total_amount: '' });
     setFormError('');
     setShowForm(true);
     loadUnbilled();
   }
 
-  async function startEdit(bill) {
-    setEditing(bill);
-    setForm({
-      work: String(bill.work),
-      bill_date: bill.bill_date || new Date().toISOString().slice(0, 10),
-      total_amount: String(bill.total_amount),
-    });
-    setFormError('');
-    setShowForm(true);
-  }
-
-  // When work selected in add mode: auto-fill total from work amount
+  // When work selected in add mode: auto-fill bill date from work date
+  // and total from work amount (both locked, work is the source of truth)
   async function handleWorkChange(workId) {
     setForm({ ...form, work: workId });
     if (!workId) {
-      setForm((f) => ({ ...f, total_amount: '' }));
+      setForm((f) => ({ ...f, bill_date: '', total_amount: '' }));
       return;
     }
     // Find in unbilled list first, else fetch all works
@@ -97,13 +85,12 @@ export default function Bills() {
       }
     }
     if (w) {
-      setForm((f) => ({ ...f, work: workId, total_amount: String(w.amount) }));
+      setForm((f) => ({ ...f, work: workId, bill_date: w.work_date || '', total_amount: String(w.amount) }));
     }
   }
 
   function selectedWork() {
-    return unbilled.find((x) => String(x.id) === String(form.work))
-      || (editing && String(editing.work) === String(form.work) ? editing : null);
+    return unbilled.find((x) => String(x.id) === String(form.work)) || null;
   }
 
   function validateForm() {
@@ -124,23 +111,13 @@ export default function Bills() {
     setSaving(true);
     setFormError('');
     try {
-      if (editing) {
-        // Edit: keep same farmer/work, update date + total
-        await updateBill(editing.id, {
-          farmer: editing.farmer,
-          work: editing.work,
-          bill_date: form.bill_date,
-          total_amount: form.total_amount,
-        });
-      } else {
-        await createBill({
-          work: Number(form.work),
-          bill_date: form.bill_date,
-          total_amount: form.total_amount,
-        });
-      }
+      // Generated bills are finalized records: only creation is supported.
+      await createBill({
+        work: Number(form.work),
+        bill_date: form.bill_date,
+        total_amount: form.total_amount,
+      });
       setShowForm(false);
-      setEditing(null);
       load(search.trim(), filterStatus);
       loadUnbilled();
     } catch {
@@ -198,33 +175,25 @@ export default function Bills() {
       {showForm && (
         <div className="card mb-3">
           <div className="card-body">
-            <h5 className="card-title">{editing ? t('Update Bill') : t('Generate Bill from Work')}</h5>
+            <h5 className="card-title">{t('Generate Bill from Work')}</h5>
             {formError && <div className="alert alert-danger">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
                 <div className="col-12">
                   <label className="form-label">{t('Work record *')}</label>
-                  {editing ? (
-                    <input
-                      className="form-control"
-                      disabled
-                      value={`${editing.farmer_name || ''} - ${editing.work_type || ''} (${editing.work_date || ''})`}
-                    />
-                  ) : (
-                    <select
-                      className="form-select"
-                      value={form.work}
-                      onChange={(e) => handleWorkChange(e.target.value)}
-                    >
-                      <option value="">{t('Select unbilled work')}</option>
-                      {unbilled.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          #{w.id} {w.farmer_name || ''} – {t(w.work_type)} ({w.work_date}) Rs {w.amount}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {!editing && unbilled.length === 0 && (
+                  <select
+                    className="form-select"
+                    value={form.work}
+                    onChange={(e) => handleWorkChange(e.target.value)}
+                  >
+                    <option value="">{t('Select unbilled work')}</option>
+                    {unbilled.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        #{w.id} {w.farmer_name || ''} – {t(w.work_type)} ({w.work_date}) Rs {w.amount}
+                      </option>
+                    ))}
+                  </select>
+                  {unbilled.length === 0 && (
                     <div className="form-text">{t('No unbilled works. Add work first in Work page.')}</div>
                   )}
                 </div>
@@ -239,33 +208,37 @@ export default function Bills() {
                   </div>
                 )}
                 <div className="col-6">
-                  <label className="form-label">{t('Bill date *')}</label>
+                  <label className="form-label">{t('Bill date *')} 🔒</label>
                   <input
                     type="date"
                     className="form-control"
                     value={form.bill_date}
-                    onChange={(e) => setForm({ ...form, bill_date: e.target.value })}
+                    readOnly
+                    disabled
+                    title={t('Bill date is taken from the work date and locked.')}
                   />
+                  <div className="form-text">
+                    {t('Bill date is taken from the selected work date and locked.')}
+                  </div>
                 </div>
                 <div className="col-6">
-                  <label className="form-label">{t('Total amount (Rs) *')}</label>
+                  <label className="form-label">{t('Billed amount (Rs) *')} 🔒</label>
                   <input
                     type="number" step="0.01" min="0"
                     className="form-control"
                     value={form.total_amount}
-                    onChange={(e) => setForm({ ...form, total_amount: e.target.value })}
-                    disabled={!!editing}
-                    readOnly={!!editing}
-                    title={editing ? t('Generated bill amount is locked.') : ''}
+                    readOnly
+                    disabled
+                    title={t('Billed amount is taken from the work amount and locked.')}
                   />
-                  {editing && (
-                    <div className="form-text">{t('Generated bill amount is locked and cannot be changed.')}</div>
-                  )}
+                  <div className="form-text">
+                    {t('Billed amount is taken from the selected work amount and locked.')}
+                  </div>
                 </div>
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
-                  {saving ? t('Saving...') : editing ? t('Update') : t('Generate')}
+                  {saving ? t('Saving...') : t('Generate')}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => setShowForm(false)}>
                   {t('Cancel')}
@@ -307,7 +280,7 @@ export default function Bills() {
                   <td><span className="badge bg-secondary">{t(b.status)}</span></td>
                   <td className="text-nowrap">
                     <Link className="btn btn-sm btn-success me-2" to={`/payments?bill=${b.id}`}>{t('Pay')}</Link>
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => startEdit(b)}>{t('Edit')}</button>
+                    <span className="badge bg-secondary me-2" title={t('Generated bills are finalized and cannot be edited.')}>🔒 {t('Final')}</span>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b.id)}>{t('Delete')}</button>
                   </td>
                 </tr>

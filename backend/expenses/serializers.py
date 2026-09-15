@@ -15,8 +15,17 @@ class ExpenseSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def validate_amount(self, value):
-        if value is None or Decimal(value) <= 0:
-            raise serializers.ValidationError('Amount must be greater than 0.')
+        # Expenses accept only positive whole rupees, starting from Rs 1.
+        # Decimals, zero and negatives are rejected even on direct API calls.
+        # Values like '2000.00' pass because they are whole.
+        try:
+            dec = Decimal(value)
+        except Exception:
+            raise serializers.ValidationError(
+                'Amount must be a whole number of at least Rs 1.')
+        if not dec.is_finite() or dec < 1 or dec != dec.to_integral_value():
+            raise serializers.ValidationError(
+                'Amount must be a whole number of at least Rs 1.')
         return value
 
     def validate_date(self, value):

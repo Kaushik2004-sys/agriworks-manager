@@ -23,6 +23,10 @@ def update_bill_status(bill):
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
+    # Saved payment records are locked: no PUT/PATCH routes exist, so updates
+    # are rejected with 405 even for direct API calls. Corrections use a new
+    # payment record. Deleting still refreshes the bill status below.
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = Payment.objects.select_related('bill', 'bill__farmer').filter(user=self.request.user)
@@ -41,16 +45,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         payment = serializer.save(user=self.request.user)
-        update_bill_status(payment.bill)
-
-    def perform_update(self, serializer):
-        old_bill = serializer.instance.bill
-        payment = serializer.save()
-        # Bill can be reassigned on update: refresh the old bill too,
-        # otherwise it keeps a stale Paid/Partial status.
-        if old_bill.id != payment.bill.id:
-            old_bill.refresh_from_db()
-            update_bill_status(old_bill)
         update_bill_status(payment.bill)
 
     def perform_destroy(self, instance):

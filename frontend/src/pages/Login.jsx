@@ -1,5 +1,6 @@
-// Login page: Email + Password (existing username logins still work).
-// Links to Create New Account and Forgot Password.
+// Login page: Username or Registered Mobile Number + Password
+// (existing email logins still work). Links to Create New Account and
+// Forgot Password.
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -57,13 +58,13 @@ export default function Login() {
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
-          <label className="form-label">{t('Email')}</label>
+          <label className="form-label">{t('Username or Registered Mobile Number')}</label>
           <input
             className="form-control"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            autoComplete="email"
-            placeholder={t('Enter your registered email')}
+            autoComplete="username"
+            placeholder={t('Enter username or registered mobile number')}
           />
         </div>
         <div className="mb-3">

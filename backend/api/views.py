@@ -47,8 +47,10 @@ def health_check(request):
 def login_view(request):
     """Validate credentials and return auth token.
 
-    Auth update: accepts Email OR Username in the `username` (or `email`)
-    field. Existing username logins keep working unchanged.
+    Auth update: accepts Email OR Username OR Registered Mobile Number in
+    the `username` (or `email`) field. Existing username/email logins keep
+    working unchanged. Mobile login resolves via UserProfile and then uses
+    the exact same password authentication (never mobile alone).
     """
     identifier = ((request.data.get('username')
                    or request.data.get('email') or '').strip())
@@ -73,6 +75,25 @@ def login_view(request):
                 {'error': 'Invalid email or password.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+    else:
+        # Username or Registered Mobile Number login. An existing username
+        # always wins so numeric usernames keep working as before.
+        from django.contrib.auth.models import User
+        if not User.objects.filter(username=identifier).exists():
+            # Mobile fallback: exactly 10 digits matching one profile.
+            if identifier.isdigit() and len(identifier) == 10:
+                from accounts.models import UserProfile
+                matches = UserProfile.objects.filter(
+                    mobile=identifier).select_related('user')
+                if matches.count() == 1:
+                    username = matches[0].user.username
+                else:
+                    # Unknown or ambiguously shared number: generic error,
+                    # never pick a user arbitrarily.
+                    return Response(
+                        {'error': 'Invalid email or password.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
     user = authenticate(username=username, password=password)
     if user is None:
@@ -81,7 +102,12 @@ def login_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    token, _ = Token.objects.get_or_create(user=user)
+    # Single active session per user: invalidate any previous token so that
+    # only this login stays valid (same rotate pattern as password change).
+    # The authtoken table already holds at most one row per user, so no
+    # model/migration change is needed.
+    Token.objects.filter(user=user).delete()
+    token = Token.objects.create(user=user)
     # Permanent login record (one NEW row per successful login; never updated).
     from accounts.models import LoginHistory
     LoginHistory.objects.create(user=user, status='Successful')
@@ -108,8 +134,9 @@ def logout_view(request):
 def me_view(request):
     """Return current logged-in user. Used to verify token + protect routes.
 
-    Auth update: also returns email + profile (full_name, company_name,
-    mobile) so Dashboard/Bills/Reports can reuse the business info.
+    Auth update: also returns email + profile (full_name, last_name,
+    company_name, mobile) so Dashboard/Bills/Reports can reuse the
+    business info.
     Legacy accounts without a profile get empty profile fields.
     """
     from accounts.views import profile_dict
@@ -280,6 +307,7 @@ def admin_login_history_view(request):
             'id': h.id,
             'username': h.user.username if h.user_id else '',
             'email': h.user.email if h.user_id else '',
+            'is_superuser': h.user.is_superuser if h.user_id else False,
             'login_date': logged_at.strftime('%d %b %Y') if logged_at else '',
             'login_time': logged_at.strftime('%I:%M %p') if logged_at else '',
             'status': h.status,
@@ -397,7 +425,7 @@ def reports_view(request):
         })
 
     if rtype == 'payment':
-        qs = Payment.objects.select_related('bill', 'bill__farmer').filter(user=user)
+        qs = Payment.objects.select_related('bill', 'bill__farmer', 'bill__work').filter(user=user)
         if farmer_id.isdigit():
             qs = qs.filter(bill__farmer_id=int(farmer_id))
         if method:
@@ -418,6 +446,7 @@ def reports_view(request):
             'type': 'payment',
             'records': [
                 {'id': p.id, 'farmer': p.bill.farmer.name, 'bill_id': p.bill_id,
+                 'work_type': p.bill.work.work_type,
                  'date': str(p.payment_date), 'method': p.method, 'amount': str(p.amount)}
                 for p in qs
             ],
@@ -441,6 +470,7 @@ def reports_view(request):
             'records': [
                 {'id': b.id, 'farmer': b.farmer.name, 'mobile': b.farmer.mobile,
                  'village': b.farmer.village, 'bill_date': str(b.bill_date),
+                 'work_type': b.work.work_type,
                  'total': str(b.total_amount), 'paid': str(b.get_paid_amount()),
                  'pending': str(b.get_pending_amount()), 'status': b.status}
                 for b in pending_bills

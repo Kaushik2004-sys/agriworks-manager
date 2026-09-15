@@ -178,12 +178,14 @@ export default function Reports() {
               </select>
             </div>
             <div className="col-6 col-md-2">
+              <label className="form-label small mb-1">{t('From Date')}</label>
               <input type="date" className="form-control" value={filters.from}
-                onChange={(e) => setFilters({ ...filters, from: e.target.value })} title={t('From date')} />
+                onChange={(e) => setFilters({ ...filters, from: e.target.value })} title={t('From Date')} aria-label={t('From Date')} />
             </div>
             <div className="col-6 col-md-2">
+              <label className="form-label small mb-1">{t('To Date')}</label>
               <input type="date" className="form-control" value={filters.to}
-                onChange={(e) => setFilters({ ...filters, to: e.target.value })} title={t('To date')} />
+                onChange={(e) => setFilters({ ...filters, to: e.target.value })} title={t('To Date')} aria-label={t('To Date')} />
             </div>
             <div className="col-12 col-md-3 d-flex gap-2 flex-wrap">
               <button className="btn btn-outline-success" type="submit">{t('Apply')}</button>
@@ -278,7 +280,7 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {records.map((r, i) => (
-                      <tr key={i}>{columns.map((c) => <td key={c}>{c === 'work_type' ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
+                      <tr key={i}>{columns.map((c) => <td key={c}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
                     ))}
                   </tbody>
                 </table>

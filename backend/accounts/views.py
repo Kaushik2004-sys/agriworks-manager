@@ -23,10 +23,11 @@ def profile_dict(user):
     """Company/business info for Dashboard, Bills, Reports reuse."""
     try:
         p = user.profile
-        return {'full_name': p.full_name, 'company_name': p.company_name,
-                'mobile': p.mobile}
+        return {'full_name': p.full_name, 'last_name': user.last_name or '',
+                'company_name': p.company_name, 'mobile': p.mobile}
     except Exception:
         return {'full_name': user.first_name or '',
+                'last_name': user.last_name or '',
                 'company_name': '', 'mobile': ''}
 
 
@@ -154,15 +155,18 @@ def _own_profile_response(user):
 def profile_view(request):
     """View or update ONLY the logged-in user's own profile.
 
-    GET returns Full Name, Company/Business Name, Email (read-only), Mobile.
-    PUT accepts full_name (required), company_name (optional),
-    mobile (10 digits). Any `email` sent is ignored - it stays read-only.
+    GET returns Full Name, Last Name, Company/Business Name,
+    Email (read-only), Mobile.
+    PUT accepts full_name (required), last_name (required),
+    company_name (optional), mobile (10 digits).
+    Any `email` sent is ignored - it stays read-only.
     """
     user = request.user
     if request.method == 'GET':
         return Response(_own_profile_response(user))
 
     full_name = (request.data.get('full_name') or '').strip()
+    last_name = (request.data.get('last_name') or '').strip()
     company_name = (request.data.get('company_name') or '').strip()
     mobile = (request.data.get('mobile') or '').strip()
 
@@ -171,6 +175,12 @@ def profile_view(request):
                         status=status.HTTP_400_BAD_REQUEST)
     if len(full_name) > 150:
         return Response({'error': 'Full Name is too long.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if not last_name:
+        return Response({'error': 'Last Name is required.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if len(last_name) > 150:
+        return Response({'error': 'Last Name is too long.'},
                         status=status.HTTP_400_BAD_REQUEST)
     if len(company_name) > 150:
         return Response({'error': 'Company / Business Name is too long.'},
@@ -186,10 +196,12 @@ def profile_view(request):
     profile.company_name = company_name
     profile.mobile = mobile
     profile.save()
-    # Keep the display name in sync; email is never changed here.
-    if user.first_name != full_name:
+    # Keep the display names in sync; email is never changed here.
+    # Last name uses the built-in User.last_name column (no new column).
+    if user.first_name != full_name or user.last_name != last_name:
         user.first_name = full_name
-        user.save(update_fields=['first_name'])
+        user.last_name = last_name
+        user.save(update_fields=['first_name', 'last_name'])
     return Response({**_own_profile_response(user),
                      'message': 'Profile updated successfully.'})
 

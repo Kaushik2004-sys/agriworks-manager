@@ -9,7 +9,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
 import { listFarmers } from '../services/farmers';
 import { listWorks } from '../services/works';
-import { PAYMENT_METHODS, createPayment, deletePayment, listPayments, updatePayment } from '../services/payments';
+import { PAYMENT_METHODS, createPayment, deletePayment, listPayments } from '../services/payments';
 
 export default function Payments() {
   const { t } = useLanguage();
@@ -25,7 +25,6 @@ export default function Payments() {
   const [error, setError] = useState('');
 
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ payment_date: '', method: 'Cash', amount: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,8 +34,7 @@ export default function Payments() {
     [bills, selectedBill]
   );
   const pending = bill ? Number(bill.pending_amount) : 0;
-  // When editing, remaining allowed = current pending + this payment's amount
-  const maxAllowed = editing ? pending + Number(editing.amount) : pending;
+  const maxAllowed = pending;
 
   const farmer = useMemo(
     () => farmers.find((f) => String(f.id) === String(selectedFarmer)),
@@ -60,9 +58,7 @@ export default function Payments() {
   }
 
   // Paid bills cannot take another payment (backend would reject amount > 0 pending).
-  // The bill being edited stays selectable so an existing payment can be updated.
   function isBillDisabled(b) {
-    if (editing && String(editing.bill) === String(b.id)) return false;
     return b.status === 'Paid';
   }
 
@@ -223,38 +219,21 @@ export default function Payments() {
       setShowForm(true);
       return;
     }
-    setEditing(null);
     setForm({ payment_date: new Date().toISOString().slice(0, 10), method: 'Cash', amount: '' });
     setFormError('');
     setShowForm(true);
   }
 
-  async function startEdit(p) {
-    // Bring the payment's bill (and its farmer) into the dependent chain
-    // so context cards and limits reflect the record being edited.
-    try {
-      const data = await listBills({});
-      const arr = Array.isArray(data) ? data : data.results || [];
-      const found = arr.find((b) => String(b.id) === String(p.bill));
-      if (found) {
-        setSelectedFarmer(String(found.farmer));
-        setSelectedBill(String(found.id));
-      }
-    } catch {
-      // keep current selection; form still edits the right bill id below
-    }
-    setEditing(p);
-    setForm({ payment_date: p.payment_date, method: p.method, amount: String(p.amount) });
-    setFormError('');
-    setShowForm(true);
-  }
-
   function validateForm() {
-    if (!selectedBill && !editing) return 'Bill is required.';
+    if (!selectedBill) return 'Bill is required.';
     if (!form.payment_date) return 'Payment date is required.';
     if (form.payment_date > new Date().toISOString().slice(0, 10)) return 'Payment date cannot be in the future.';
-    if (!(Number(form.amount) > 0)) return 'Payment amount must be greater than 0.';
-    if (Number(form.amount) > maxAllowed + 0.001) {
+    // Whole rupees only, starting from Rs 1 (no zero, negatives or decimals).
+    const amt = Number(form.amount);
+    if (form.amount === '' || !Number.isInteger(amt) || amt < 1) {
+      return 'Payment amount must be a whole number of at least Rs 1 (no decimals).';
+    }
+    if (amt > maxAllowed + 0.001) {
       return `Payment Rs ${form.amount} exceeds remaining Rs ${maxAllowed.toFixed(2)}.`;
     }
     return '';
@@ -270,23 +249,14 @@ export default function Payments() {
     setSaving(true);
     setFormError('');
     try {
-      if (editing) {
-        await updatePayment(editing.id, {
-          bill: editing.bill,
-          payment_date: form.payment_date,
-          method: form.method,
-          amount: form.amount,
-        });
-      } else {
-        await createPayment({
-          bill: Number(selectedBill),
-          payment_date: form.payment_date,
-          method: form.method,
-          amount: form.amount,
-        });
-      }
+      // Saved payment records are locked: only recording is supported.
+      await createPayment({
+        bill: Number(selectedBill),
+        payment_date: form.payment_date,
+        method: form.method,
+        amount: form.amount,
+      });
       setShowForm(false);
-      setEditing(null);
       await refreshBill();
       await loadPayments(selectedBill);
     } catch {
@@ -336,7 +306,6 @@ export default function Payments() {
             onChange={(e) => {
               setSelectedFarmer(e.target.value);
               setShowForm(false);
-              setEditing(null);
             }}
           >
             <option value="">{t('Select a farmer')}</option>
@@ -397,7 +366,7 @@ export default function Payments() {
       {showForm && (
         <div className="card mb-3">
           <div className="card-body">
-            <h5 className="card-title">{editing ? t('Update Payment') : t('Record Payment')}</h5>
+            <h5 className="card-title">{t('Record Payment')}</h5>
             {formError && <div className="alert alert-danger">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
@@ -425,17 +394,17 @@ export default function Payments() {
                 <div className="col-12 col-md-4">
                   <label className="form-label">{t('Amount (Rs) *')}</label>
                   <input
-                    type="number" step="0.01" min="0"
+                    type="number" step="1" min="1"
                     className="form-control"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   />
-                  <div className="form-text">{t('Maximum allowed: Rs ')}{maxAllowed.toFixed(2)}</div>
+                  <div className="form-text">{t('Whole rupees only, minimum Rs 1. Maximum allowed: Rs ')}{maxAllowed.toFixed(2)}</div>
                 </div>
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
-                  {saving ? t('Saving...') : editing ? t('Update') : t('Save')}
+                  {saving ? t('Saving...') : t('Save')}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => setShowForm(false)}>
                   {t('Cancel')}
@@ -472,7 +441,7 @@ export default function Payments() {
                   <td>{t(p.method)}</td>
                   <td>Rs {p.amount}</td>
                   <td className="text-nowrap">
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => startEdit(p)}>{t('Edit')}</button>
+                    <span className="badge bg-secondary me-2" title={t('Saved payment records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(p.id)}>{t('Delete')}</button>
                   </td>
                 </tr>

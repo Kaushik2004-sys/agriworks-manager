@@ -1,5 +1,6 @@
 // Auth update: Create Account page.
-// Fields: Full Name (required), Company/Business Name (optional),
+// Fields: Full Name (required), Last Name (required),
+// Company/Business Name (optional),
 // Email (required, unique, valid), Mobile (10 digits),
 // Password + Confirm Password (must match, hashed by Django backend).
 import { useState } from 'react';
@@ -11,6 +12,7 @@ import { PASSWORD_HINT, passwordError } from '../utils/validatePassword';
 
 const emptyForm = {
   full_name: '',
+  last_name: '',
   company_name: '',
   email: '',
   mobile: '',
@@ -32,6 +34,8 @@ export default function Signup() {
 
   function validate() {
     if (!form.full_name.trim()) return 'Full Name is required.';
+    if (!form.last_name.trim()) return 'Last Name is required.';
+    if (form.last_name.trim().length > 150) return 'Last Name is too long.';
     if (!form.email.trim()) return 'Email is required.';
     if (!isValidEmail(form.email)) {
       return INVALID_EMAIL_MESSAGE;
@@ -58,6 +62,7 @@ export default function Signup() {
     try {
       await register({
         full_name: form.full_name.trim(),
+        last_name: form.last_name.trim(),
         company_name: form.company_name.trim(), // optional - may be empty
         email: form.email.trim(),
         mobile: form.mobile.trim(),
@@ -91,14 +96,25 @@ export default function Signup() {
       {error && <div className="alert alert-danger">{t(error)}</div>}
 
       <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label className="form-label">{t('Full Name *')}</label>
-          <input
-            className="form-control"
-            value={form.full_name}
-            onChange={(e) => set('full_name', e.target.value)}
-            autoComplete="name"
-          />
+        <div className="row g-2">
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Full Name *')}</label>
+            <input
+              className="form-control"
+              value={form.full_name}
+              onChange={(e) => set('full_name', e.target.value)}
+              autoComplete="given-name"
+            />
+          </div>
+          <div className="col-12 col-md-6 mb-3">
+            <label className="form-label">{t('Last Name *')}</label>
+            <input
+              className="form-control"
+              value={form.last_name}
+              onChange={(e) => set('last_name', e.target.value)}
+              autoComplete="family-name"
+            />
+          </div>
         </div>
         <div className="mb-3">
           <label className="form-label">{t('Company / Business Name')} <span className="text-muted">{t('(optional)')}</span></label>

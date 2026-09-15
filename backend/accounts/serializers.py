@@ -15,6 +15,7 @@ def _get_profile(user):
 
 class RegisterSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
     company_name = serializers.CharField(
         max_length=150, required=False, allow_blank=True, default='')
     email = serializers.CharField(max_length=254)
@@ -32,6 +33,12 @@ class RegisterSerializer(serializers.Serializer):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('Full Name is required.')
+        return value
+
+    def validate_last_name(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Last Name is required.')
         return value
 
     def validate_email(self, value):
@@ -79,8 +86,10 @@ class RegisterSerializer(serializers.Serializer):
             username = f'{base}{counter}'
 
         # set_password() hashes the password - never stored as plain text.
+        # Last name uses the built-in User.last_name column (no new column).
         user = User(username=username, email=email,
-                    first_name=validated_data['full_name'].strip())
+                    first_name=validated_data['full_name'].strip(),
+                    last_name=validated_data['last_name'].strip())
         user.set_password(validated_data['password'])
         user.save()
         UserProfile.objects.create(

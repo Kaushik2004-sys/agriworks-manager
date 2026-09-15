@@ -1,30 +1,18 @@
 # Phase 5: Bill CRUD API (requires login).
+# Generated bills are finalized records: no PUT/PATCH routes exist, so any
+# update attempt is rejected with 405 even for direct API calls.
 # Filters: ?search=farmer name/mobile/village, ?status=Unpaid/Partial/Paid, ?farmer=<id>
-from decimal import Decimal
-from django.db.models import Q, Sum
+from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from .models import Bill
 from .serializers import BillSerializer
 
 
-def refresh_bill_status(bill):
-    """Recalculate Paid/Partial/Unpaid after total_amount is edited.
-    (Payment create/update/delete already recalculates on its own side.)"""
-    bill.refresh_from_db()
-    paid = bill.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    if paid <= 0:
-        bill.status = 'Unpaid'
-    elif paid >= bill.total_amount:
-        bill.status = 'Paid'
-    else:
-        bill.status = 'Partial'
-    bill.save(update_fields=['status', 'updated_at'])
-
-
 class BillViewSet(viewsets.ModelViewSet):
     serializer_class = BillSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = Bill.objects.select_related('farmer', 'work').filter(user=self.request.user)
@@ -52,9 +40,3 @@ class BillViewSet(viewsets.ModelViewSet):
             serializer.save(user=self.request.user, farmer=work.farmer)
         else:
             serializer.save(user=self.request.user)
-
-    def perform_update(self, serializer):
-        bill = serializer.save()
-        # Editing total_amount must refresh status (e.g. raising the total
-        # on a Paid bill must not leave it showing Paid).
-        refresh_bill_status(bill)

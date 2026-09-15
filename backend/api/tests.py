@@ -11,7 +11,8 @@ STRONG = 'Pass1234!'
 
 def make_user(client, email='smoke@test.com', password=STRONG):
     res = client.post('/api/register/', {
-        'full_name': 'Smoke Test', 'email': email, 'mobile': '9998887776',
+        'full_name': 'Smoke Test', 'last_name': 'User', 'email': email,
+        'mobile': '9998887776',
         'password': password, 'confirm_password': password,
     }, format='json')
     assert res.status_code == 201, res.content
@@ -23,7 +24,8 @@ def make_user(client, email='smoke@test.com', password=STRONG):
 class AuthSmokeTests(APITestCase):
     def test_register_login_profile(self):
         res = self.client.post('/api/register/', {
-            'full_name': 'Smoke Test', 'email': 'smoke@test.com',
+            'full_name': 'Smoke Test', 'last_name': 'User',
+            'email': 'smoke@test.com',
             'mobile': '9998887776', 'password': STRONG,
             'confirm_password': STRONG,
         }, format='json')
@@ -31,14 +33,14 @@ class AuthSmokeTests(APITestCase):
         self.assertIn('token', res.data)
         # Duplicate email blocked.
         res = self.client.post('/api/register/', {
-            'full_name': 'Dup', 'email': 'smoke@test.com',
+            'full_name': 'Dup', 'last_name': 'User', 'email': 'smoke@test.com',
             'mobile': '8887776665', 'password': STRONG,
             'confirm_password': STRONG,
         }, format='json')
         self.assertEqual(res.status_code, 400)
         # Weak password blocked.
         res = self.client.post('/api/register/', {
-            'full_name': 'Weak', 'email': 'weak@test.com',
+            'full_name': 'Weak', 'last_name': 'User', 'email': 'weak@test.com',
             'mobile': '8887776665', 'password': 'pass1234',
             'confirm_password': 'pass1234',
         }, format='json')
@@ -107,7 +109,8 @@ class AuthSmokeTests(APITestCase):
         self.assertEqual(res.data['email'], 'smoke@test.com')
         # Email is read-only: sent value is ignored.
         res = self.client.put('/api/profile/', {
-            'full_name': 'Smoke Updated', 'company_name': 'Acme',
+            'full_name': 'Smoke Updated', 'last_name': 'User',
+            'company_name': 'Acme',
             'mobile': '8887776665', 'email': 'hacker@evil.com',
         }, format='json')
         self.assertEqual(res.status_code, 200)
@@ -116,7 +119,7 @@ class AuthSmokeTests(APITestCase):
         self.assertEqual(user.profile.company_name, 'Acme')
         # Bad mobile blocked.
         res = self.client.put('/api/profile/', {
-            'full_name': 'Smoke', 'mobile': '123',
+            'full_name': 'Smoke', 'last_name': 'User', 'mobile': '123',
         }, format='json')
         self.assertEqual(res.status_code, 400)
         # Wrong current password blocked; correct one rotates token.
@@ -171,13 +174,13 @@ class BusinessSmokeTests(APITestCase):
         self.assertEqual(res.status_code, 400)
         # Bill from work; duplicate blocked.
         res = self.client.post('/api/bills/', {
-            'work': work, 'bill_date': '2026-09-11', 'total_amount': '10000.00',
+            'work': work, 'bill_date': '2026-09-10', 'total_amount': '10000.00',
         }, format='json')
         self.assertEqual(res.status_code, 201)
         bill = res.data['id']
         self.assertEqual(res.data['status'], 'Unpaid')
         res = self.client.post('/api/bills/', {
-            'work': work, 'bill_date': '2026-09-11', 'total_amount': '5.00',
+            'work': work, 'bill_date': '2026-09-10', 'total_amount': '5.00',
         }, format='json')
         self.assertEqual(res.status_code, 400)
         # Partial payments then overpay blocked then full.
@@ -339,76 +342,426 @@ class BillTotalValidationTests(APITestCase):
         res = self.client.post('/api/works/', {'farmer': farmer, 'work_type': 'Ploughing', 'work_date': '2026-09-10', 'area': '2.00', 'rate_per_acre': '5000.00', 'amount': '10000.00', 'field_location': 'North Field'}, format='json')
         self.assertEqual(res.status_code, 201)
         self.work = res.data['id']
-        res = self.client.post('/api/bills/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '10000.00'}, format='json')
+        res = self.client.post('/api/bills/', {'work': self.work, 'bill_date': '2026-09-10', 'total_amount': '10000.00'}, format='json')
         self.assertEqual(res.status_code, 201)
         self.bill = res.data['id']
         res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-12', 'method': 'Cash', 'amount': '3000.00'}, format='json')
         self.assertEqual(res.status_code, 201)
 
-    def test_lower_total_below_paid_rejected(self):
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '2000.00'}, format='json')
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('total_amount', res.data)
+    def test_finalized_bill_rejects_updates(self):
+        # Finalized bills reject PUT and PATCH with 405; the record is untouched.
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-10', 'total_amount': '2000.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.patch(f'/api/bills/{self.bill}/', {'total_amount': '2000.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
         res = self.client.get(f'/api/bills/{self.bill}/')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['pending_amount'], '7000.00')
         self.assertEqual(res.data['status'], 'Partial')
 
-    def test_zero_total_rejected_on_create_and_update(self):
+    def test_bill_date_locked_to_work_date(self):
+        # Bill date defaults to the work date; a different date is rejected
+        # on create and on update, and the work record is never modified.
+        res = self.client.post('/api/works/', {'farmer': self.farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        work2 = res.data['id']
+        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-11', 'total_amount': '500.00'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('bill_date', res.data)
+        res = self.client.post('/api/bills/', {'work': work2, 'total_amount': '500.00'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['bill_date'], '2026-09-10')
+        self.assertEqual(res.data['total_amount'], '500.00')
+        bill2 = res.data['id']
+        res = self.client.put(f'/api/bills/{bill2}/', {'work': work2, 'bill_date': '2026-09-12', 'total_amount': '500.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.get(f'/api/bills/{bill2}/')
+        self.assertEqual(res.data['bill_date'], '2026-09-10')
+        res = self.client.get(f'/api/works/{work2}/')
+        self.assertEqual(res.data['work_date'], '2026-09-10')
+        self.assertEqual(res.data['amount'], '500.00')
+
+    def test_zero_total_rejected_on_create(self):
         res = self.client.post('/api/works/', {'farmer': self.farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
         work2 = res.data['id']
-        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-11', 'total_amount': '0'}, format='json')
+        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-10', 'total_amount': '0'}, format='json')
         self.assertEqual(res.status_code, 400)
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '0'}, format='json')
-        self.assertEqual(res.status_code, 400)
+        # Finalized bills reject updates with 405.
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-10', 'total_amount': '0'}, format='json')
+        self.assertEqual(res.status_code, 405)
 
-    def test_raise_total_keeps_status_correct(self):
-        # Locked totals: raising the total of a generated bill is rejected
+    def test_raise_total_rejected_as_finalized(self):
+        # Finalized bills reject total changes with 405
         # and the stored bill is left untouched.
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '12000.00'}, format='json')
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('total_amount', res.data)
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-10', 'total_amount': '12000.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
         res = self.client.get(f'/api/bills/{self.bill}/')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['pending_amount'], '7000.00')
         self.assertEqual(res.data['status'], 'Partial')
 
-    def test_negative_total_rejected_on_create_and_update(self):
+    def test_negative_total_rejected_on_create(self):
         res = self.client.post('/api/works/', {'farmer': self.farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
         work2 = res.data['id']
-        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-11', 'total_amount': '-100'}, format='json')
+        res = self.client.post('/api/bills/', {'work': work2, 'bill_date': '2026-09-10', 'total_amount': '-100'}, format='json')
         self.assertEqual(res.status_code, 400)
         self.assertIn('total_amount', res.data)
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '-100'}, format='json')
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('total_amount', res.data)
+        # Finalized bills reject updates with 405.
+        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-10', 'total_amount': '-100'}, format='json')
+        self.assertEqual(res.status_code, 405)
         # Bill untouched by the rejected updates.
         res = self.client.get(f'/api/bills/{self.bill}/')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['pending_amount'], '7000.00')
 
-    def test_total_equal_to_paid_accepted(self):
-        # Lock allows resubmitting the SAME total (normal full-object PUTs
-        # that edit other fields, e.g. bill_date) while any real change,
-        # even down to exactly the paid amount, is rejected as locked.
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-12', 'total_amount': '10000.00'}, format='json')
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['bill_date'], '2026-09-12')
-        self.assertEqual(res.data['total_amount'], '10000.00')
-        self.assertEqual(res.data['pending_amount'], '7000.00')
-        res = self.client.put(f'/api/bills/{self.bill}/', {'work': self.work, 'bill_date': '2026-09-11', 'total_amount': '3000.00'}, format='json')
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('total_amount', res.data)
+    def test_finalized_bill_rejects_patch(self):
+        # Even a same-value PATCH is rejected: finalized means no updates.
+        res = self.client.patch(f'/api/bills/{self.bill}/', {'total_amount': '10000.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
         res = self.client.get(f'/api/bills/{self.bill}/')
         self.assertEqual(res.data['total_amount'], '10000.00')
+        self.assertEqual(res.data['pending_amount'], '7000.00')
 
-    def test_bill_total_stored_and_locked(self):
-        # Generate bill -> amount is stored; changing unrelated Work data
-        # must NOT silently modify the generated bill total.
-        res = self.client.get(f'/api/bills/{self.bill}/')
-        self.assertEqual(res.data['total_amount'], '10000.00')
+    def test_locked_work_rejects_updates(self):
+        # Saved work records are locked (source of truth for billing):
+        # PUT and PATCH are rejected with 405 and the bill is untouched.
         res = self.client.put(f'/api/works/{self.work}/', {'farmer': self.farmer, 'work_type': 'Ploughing', 'work_date': '2026-09-10', 'area': '2.00', 'rate_per_acre': '5000.00', 'amount': '10000.00', 'field_location': 'North Field', 'remark': 'Changed remark'}, format='json')
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 405)
+        res = self.client.patch(f'/api/works/{self.work}/', {'remark': 'Changed remark'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.get(f'/api/works/{self.work}/')
+        self.assertEqual(res.data['work_date'], '2026-09-10')
+        self.assertEqual(res.data['amount'], '10000.00')
         res = self.client.get(f'/api/bills/{self.bill}/')
         self.assertEqual(res.data['total_amount'], '10000.00')
         self.assertEqual(res.data['pending_amount'], '7000.00')
+
+class PaymentLockValidationTests(APITestCase):
+    def setUp(self):
+        make_user(self.client, email='paylock@test.com')
+        res = self.client.post('/api/farmers/', {'name': 'Pay Lock', 'mobile': '9998887776', 'village': 'V'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        farmer = res.data['id']
+        res = self.client.post('/api/works/', {'farmer': farmer, 'work_type': 'Other', 'work_date': '2026-09-10', 'area': '1.00', 'amount': '2500.00', 'field_location': 'X', 'work_description': 'Y'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.work = res.data['id']
+        res = self.client.post('/api/bills/', {'work': self.work}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['total_amount'], '2500.00')
+        self.assertEqual(res.data['bill_date'], '2026-09-10')
+        self.bill = res.data['id']
+
+    def test_saved_payment_rejects_updates(self):
+        # Saved payment records are locked: PUT and PATCH give 405.
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'Cash', 'amount': '1000'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        pay = res.data['id']
+        res = self.client.put(f'/api/payments/{pay}/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'Cash', 'amount': '500'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.patch(f'/api/payments/{pay}/', {'amount': '500'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.get(f'/api/payments/{pay}/')
+        self.assertEqual(res.data['amount'], '1000.00')
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['status'], 'Partial')
+        self.assertEqual(res.data['pending_amount'], '1500.00')
+
+    def test_whole_rupee_amounts_accepted(self):
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'Cash', 'amount': '1'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'UPI', 'amount': '100'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['pending_amount'], '2399.00')
+        self.assertEqual(res.data['status'], 'Partial')
+
+    def test_fractional_and_nonpositive_amounts_rejected(self):
+        for amt in ['0', '-1', '-500', '1.5', '10.50', '999.99']:
+            res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'Cash', 'amount': amt}, format='json')
+            self.assertEqual(res.status_code, 400, amt)
+            self.assertIn('amount', res.data, amt)
+
+    def test_payment_above_balance_rejected(self):
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-11', 'method': 'Cash', 'amount': '1000'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post('/api/payments/', {'bill': self.bill, 'payment_date': '2026-09-12', 'method': 'Cash', 'amount': '1501'}, format='json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.get(f'/api/bills/{self.bill}/')
+        self.assertEqual(res.data['pending_amount'], '1500.00')
+        self.assertEqual(res.data['status'], 'Partial')
+
+class ExpenseLockValidationTests(APITestCase):
+    def setUp(self):
+        make_user(self.client, email='explock@test.com')
+        res = self.client.post('/api/expenses/', {'expense_type': 'Diesel', 'amount': '2000.00', 'date': '2026-09-12', 'description': 'test'}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.exp = res.data['id']
+
+    def test_saved_expense_rejects_updates(self):
+        # Saved expense records are locked: PUT and PATCH give 405.
+        res = self.client.put(f'/api/expenses/{self.exp}/', {'expense_type': 'Diesel', 'amount': '9999.00', 'date': '2026-09-12', 'description': 'tampered'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.patch(f'/api/expenses/{self.exp}/', {'amount': '9999.00'}, format='json')
+        self.assertEqual(res.status_code, 405)
+        res = self.client.get(f'/api/expenses/{self.exp}/')
+        self.assertEqual(res.data['amount'], '2000.00')
+        self.assertEqual(res.data['description'], 'test')
+
+class APINoCacheTests(APITestCase):
+    def test_protected_api_responses_are_no_store(self):
+        # Protected API responses must not be cached by the browser, so
+        # Back/forward restores cannot render stale user-specific data.
+        make_user(self.client, email='nocache@test.com')
+        res = self.client.get('/api/me/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('no-store', res['Cache-Control'])
+
+
+class SingleSessionTests(APITestCase):
+    """One active session per user: a new login rotates the token so the
+    previous device session is rejected. Server is the source of truth."""
+
+    def login(self, client, username, password=STRONG):
+        res = client.post('/api/login/', {
+            'username': username, 'password': password,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        return res.data['token']
+
+    def test_second_login_invalidates_first(self):
+        from rest_framework.test import APIClient
+        make_user(self.client, email='single@test.com')
+        # Laptop login works.
+        laptop = APIClient()
+        laptop_token = self.login(laptop, 'single@test.com')
+        self.assertEqual(laptop.get('/api/me/').status_code, 200)
+        # Same user logs in on a second device (phone).
+        phone = APIClient()
+        phone_token = self.login(phone, 'single@test.com')
+        self.assertNotEqual(phone_token, laptop_token)
+        # Old laptop session is rejected; phone session works.
+        self.assertEqual(laptop.get('/api/me/').status_code, 401)
+        self.assertEqual(phone.get('/api/me/').status_code, 200)
+
+    def test_different_users_stay_logged_in(self):
+        from rest_framework.test import APIClient
+        make_user(self.client, email='usera@test.com')
+        user_a = self.client
+        user_b = APIClient()
+        make_user(user_b, email='userb@test.com')
+        # User B logging in/out does not affect User A's session.
+        self.assertEqual(user_a.get('/api/me/').status_code, 200)
+        self.assertEqual(user_b.get('/api/me/').status_code, 200)
+
+    def test_logout_invalidates_session(self):
+        make_user(self.client)
+        self.assertEqual(self.client.get('/api/me/').status_code, 200)
+        res = self.client.post('/api/logout/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.client.get('/api/me/').status_code, 401)
+
+    def test_admin_login_works(self):
+        from django.contrib.auth.models import User
+        admin = User.objects.create_user(
+            username='singleboss', email='singleboss@t.com',
+            password='pw123456')
+        admin.is_superuser = True
+        admin.save()
+        res = self.client.post('/api/login/', {
+            'username': 'singleboss', 'password': 'pw123456',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        res = self.client.get('/api/admin/overview/')
+        self.assertEqual(res.status_code, 200)
+
+
+class ReportWorkTypeTests(APITestCase):
+    """Payment/billing/pending reports expose Work Type from the actual
+    related Work record (Payment -> Bill -> Work, Bill -> Work)."""
+
+    def setUp(self):
+        make_user(self.client, email='reportwt@test.com')
+        res = self.client.post('/api/farmers/', {
+            'name': 'Report WT', 'mobile': '9998887776', 'village': 'V',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.farmer = res.data['id']
+        res = self.client.post('/api/works/', {
+            'farmer': self.farmer, 'work_type': 'Harvesting',
+            'work_date': '2026-09-10', 'area': '2.00',
+            'rate_per_acre': '1000', 'amount': '2000.00',
+            'field_location': 'North Field',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.work = res.data['id']
+        res = self.client.post('/api/bills/', {'work': self.work}, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.bill = res.data['id']
+        res = self.client.post('/api/payments/', {
+            'bill': self.bill, 'payment_date': '2026-09-12',
+            'method': 'Cash', 'amount': '500',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+
+    def test_payment_report_has_work_type(self):
+        res = self.client.get('/api/reports/', {'type': 'payment'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['records']), 1)
+        self.assertEqual(res.data['records'][0]['work_type'], 'Harvesting')
+
+    def test_billing_report_has_work_type(self):
+        res = self.client.get('/api/reports/', {'type': 'billing'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['records']), 1)
+        # Billing report carries the work type in its existing 'work' field.
+        self.assertEqual(res.data['records'][0]['work'], 'Harvesting')
+
+    def test_pending_report_has_work_type(self):
+        res = self.client.get('/api/reports/', {'type': 'pending'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['records']), 1)
+        rec = res.data['records'][0]
+        self.assertEqual(rec['work_type'], 'Harvesting')
+        self.assertEqual(rec['pending'], '1500.00')
+
+
+class MobileLoginTests(APITestCase):
+    """Login accepts Username OR Registered Mobile Number with the same
+    password authentication, generic errors, and single-session rotation."""
+
+    def test_username_login_succeeds(self):
+        make_user(self.client, email='mobuser@test.com')
+        self.client.credentials()
+        res = self.client.post('/api/login/', {
+            'username': 'mobuser', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('token', res.data)
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        self.assertEqual(self.client.get('/api/me/').status_code, 200)
+
+    def test_mobile_login_succeeds(self):
+        make_user(self.client, email='mobuser2@test.com')
+        self.client.credentials()
+        res = self.client.post('/api/login/', {
+            'username': '9998887776', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('token', res.data)
+        self.assertEqual(res.data['email'], 'mobuser2@test.com')
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        self.assertEqual(self.client.get('/api/me/').status_code, 200)
+
+    def test_wrong_password_rejected(self):
+        make_user(self.client, email='mobuser3@test.com')
+        self.client.credentials()
+        for identifier in ('mobuser3', '9998887776'):
+            res = self.client.post('/api/login/', {
+                'username': identifier, 'password': 'Wrong1@x',
+            }, format='json')
+            self.assertEqual(res.status_code, 400, identifier)
+            self.assertNotIn('token', res.data, identifier)
+
+    def test_unregistered_mobile_and_bad_username_rejected(self):
+        for identifier in ('1112223334', 'nosuchuser'):
+            res = self.client.post('/api/login/', {
+                'username': identifier, 'password': STRONG,
+            }, format='json')
+            self.assertEqual(res.status_code, 400, identifier)
+            self.assertNotIn('token', res.data, identifier)
+
+    def test_duplicate_mobile_rejected_safely(self):
+        # Mobile is not unique: a shared number must never pick a user.
+        make_user(self.client, email='dupmob1@test.com')
+        make_user(self.client, email='dupmob2@test.com')
+        self.client.credentials()
+        res = self.client.post('/api/login/', {
+            'username': '9998887776', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertNotIn('token', res.data)
+
+    def test_admin_username_login_still_works(self):
+        from django.contrib.auth.models import User
+        admin = User.objects.create_user(
+            username='mobadmin', email='mobadmin@t.com',
+            password='pw123456')
+        admin.is_superuser = True
+        admin.save()
+        res = self.client.post('/api/login/', {
+            'username': 'mobadmin', 'password': 'pw123456',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        self.assertEqual(
+            self.client.get('/api/admin/overview/').status_code, 200)
+
+    def test_mobile_login_rotates_session_and_logout_works(self):
+        from rest_framework.test import APIClient
+        make_user(self.client, email='mobuser4@test.com')
+        laptop = APIClient()
+        res = laptop.post('/api/login/', {
+            'username': 'mobuser4', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        laptop.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        self.assertEqual(laptop.get('/api/me/').status_code, 200)
+        # Same user logs in via mobile on a second device.
+        phone = APIClient()
+        res = phone.post('/api/login/', {
+            'username': '9998887776', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        phone.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        self.assertEqual(laptop.get('/api/me/').status_code, 401)
+        self.assertEqual(phone.get('/api/me/').status_code, 200)
+        # Logout invalidates the active session.
+        self.assertEqual(phone.post('/api/logout/').status_code, 200)
+        self.assertEqual(phone.get('/api/me/').status_code, 401)
+
+
+class LoginHistoryRoleTests(APITestCase):
+    """Login-history records expose the actual is_superuser role so the
+    Admin Panel can badge Admin vs User activity. Additive field only."""
+
+    def test_role_present_for_admin_and_user(self):
+        from django.contrib.auth.models import User
+        make_user(self.client, email='roleuser@test.com')
+        admin = User.objects.create_user(
+            username='roleboss', email='roleboss@t.com',
+            password='pw123456')
+        admin.is_superuser = True
+        admin.save()
+        # Normal user login creates its own history row.
+        res = self.client.post('/api/login/', {
+            'username': 'roleuser', 'password': STRONG,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        # Drop the rotated (now dead) token: DRF rejects even public
+        # endpoints when a bad token is attached.
+        self.client.credentials()
+        res = self.client.post('/api/login/', {
+            'username': 'roleboss', 'password': 'pw123456',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + res.data['token'])
+        res = self.client.get('/api/admin/login-history/')
+        self.assertEqual(res.status_code, 200)
+        by_user = {r['username']: r for r in res.data}
+        self.assertTrue(by_user['roleboss']['is_superuser'])
+        self.assertFalse(by_user['roleuser']['is_superuser'])
+        # Existing fields still present for every record.
+        for r in res.data:
+            for key in ('username', 'email', 'login_date', 'login_time',
+                        'status'):
+                self.assertIn(key, r)

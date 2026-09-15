@@ -4,7 +4,7 @@ Django settings for AgriWorks Manager - Phase 1 Project Setup.
 Simple settings kept understandable for B.Sc. IT student.
 - Frontend: React.js (http://localhost:5173)
 - Backend: Django + DRF (http://127.0.0.1:8000)
-- Database: SQLite (db.sqlite3) — MySQL is not required.
+- Database: MySQL (agriworks_db) — the only supported database.
 """
 
 import os
@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Must be on top for React access
     'django.middleware.security.SecurityMiddleware',
+    'config.middleware.APINoCacheMiddleware',  # No-cache on /api/ responses
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve admin/DRF static in production
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -81,31 +82,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database: SQLite is the project database (db.sqlite3).
-# The mysql block below is kept only as an unused fallback and is not used.
-DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite')
-
-if DB_ENGINE == 'mysql':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': os.getenv('DB_NAME', 'agriworks_db'),
-            'USER': os.getenv('DB_USER', 'root'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-            'PORT': os.getenv('DB_PORT', '3306'),
-            'OPTIONS': {'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"},
-        }
+# Database: MySQL is the only supported database for this project.
+# There is intentionally no SQLite fallback — if MySQL is unreachable,
+# Django must fail loudly instead of silently using another database.
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.getenv('DB_NAME', 'agriworks_db'),
+        'USER': os.getenv('DB_USER', 'root'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+        'PORT': os.getenv('DB_PORT', '3306'),
+        'OPTIONS': {'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"},
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            # Render persistent disk sets SQLITE_PATH=/var/data/db.sqlite3.
-            # Local default unchanged: backend/db.sqlite3.
-            'NAME': os.getenv('SQLITE_PATH') or BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 
 AUTH_PASSWORD_VALIDATORS = [

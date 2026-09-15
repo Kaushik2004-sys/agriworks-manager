@@ -30,6 +30,7 @@ import FAQ from './pages/FAQ';
 import Farmers from './pages/Farmers';
 import Footer from './components/Footer';
 import { useAuth } from './context/AuthContext';
+import { useLanguage } from './i18n/LanguageContext';
 import ForgotPassword from './pages/ForgotPassword';
 import HelpSupport from './pages/HelpSupport';
 import Login from './pages/Login';
@@ -54,13 +55,27 @@ function HomeRoute() {
 
 // Already-authenticated users visiting /login or /signup are sent Home
 // with history replacement, so auth pages never linger behind a session.
+// If a token is stored but the session could not be verified (backend
+// unreachable), the login form is NOT shown as stale content; a retry
+// prompt is shown instead until verification succeeds or fails.
 function GuestRoute({ children }) {
-  const { user, token, loading } = useAuth();
+  const { user, token, loading, authError, revalidate } = useAuth();
+  const { t } = useLanguage();
   if (loading) {
     return null;
   }
   if (user && token) {
     return <Navigate to="/" replace />;
+  }
+  if (token && authError === 'network') {
+    return (
+      <div className="container py-4">
+        <div className="alert alert-warning">{t('Could not verify your session. Please check your connection and retry.')}</div>
+        <button className="btn btn-success" type="button" onClick={() => revalidate()}>
+          {t('Retry')}
+        </button>
+      </div>
+    );
   }
   return children;
 }

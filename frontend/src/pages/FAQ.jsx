@@ -24,7 +24,7 @@ const FAQS = [
   {
     id: 'bills',
     q: 'How are bills generated?',
-    a: 'Go to the Bills page and generate a bill from a completed, unbilled work record. The farmer and amount are auto-filled from the work, and you set the bill date and total amount. Each bill tracks its status automatically as Unpaid, Partial, or Paid based on payments received.',
+    a: 'Go to the Bills page and generate a bill from a completed, unbilled work record. The farmer, bill date and amount are auto-filled from the work and locked. Each bill tracks its status automatically as Unpaid, Partial, or Paid based on payments received.',
   },
   {
     id: 'partial-payments',

@@ -28,6 +28,8 @@ class BillSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             # Farmer auto-filled from work in perform_create, so not required on input.
             'farmer': {'required': False},
+            # Bill date defaults to the work date if not given.
+            'bill_date': {'required': False},
             # Total defaults to work.amount if not given.
             'total_amount': {'required': False},
         }
@@ -77,9 +79,30 @@ class BillSerializer(serializers.ModelSerializer):
             if farmer and farmer.user_id != request.user.id:
                 raise serializers.ValidationError({'farmer': 'Selected farmer does not belong to you.'})
 
-        # Default total to work amount if not given
-        if work and attrs.get('total_amount') is None:
-            attrs['total_amount'] = work.amount
+        # Bill date follows the work date (source of truth) on create and update.
+        # A sent date that differs is rejected, so API tampering cannot create
+        # a bill inconsistent with its work record. Omitting the date on create
+        # still defaults to the work date (normal UI flow). The work record
+        # itself is never modified here.
+        if work is not None:
+            if attrs.get('bill_date') is not None:
+                if attrs['bill_date'] != work.work_date:
+                    raise serializers.ValidationError(
+                        {'bill_date': 'Bill date must match the work date.'})
+            elif self.instance is None:
+                attrs['bill_date'] = work.work_date
+        # Create: the billed amount is locked to the work amount at generation.
+        # The work amount is the source of truth; an explicitly sent amount
+        # that differs from it is rejected, so API tampering cannot create
+        # a bill inconsistent with its work record. Omitting the amount
+        # still defaults to the work amount (normal UI flow).
+        if self.instance is None and work is not None:
+            if attrs.get('total_amount') is not None:
+                if Decimal(attrs['total_amount']) != Decimal(work.amount):
+                    raise serializers.ValidationError(
+                        {'total_amount': 'Billed amount must match the work amount.'})
+            else:
+                attrs['total_amount'] = work.amount
         # Total must be positive however it was provided (explicit or defaulted).
         if attrs.get('total_amount') is not None and Decimal(attrs['total_amount']) <= 0:
             raise serializers.ValidationError(
@@ -87,7 +110,7 @@ class BillSerializer(serializers.ModelSerializer):
         # Lock: once a bill is generated its total is frozen. Any API attempt
         # to change total_amount on update is rejected, so frontend hiding
         # alone is never the only protection. Same-value resubmits (normal
-        # full-object PUTs that also edit bill_date) remain allowed.
+        # full-object PUTs) remain allowed.
         if self.instance is not None and attrs.get('total_amount') is not None:
             if Decimal(attrs['total_amount']) != self.instance.total_amount:
                 raise serializers.ValidationError(

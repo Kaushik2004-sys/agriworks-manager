@@ -10,6 +10,10 @@ from .serializers import ExpenseSerializer
 class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     permission_classes = [IsAuthenticated]
+    # Saved expense records are locked: no PUT/PATCH routes exist, so updates
+    # are rejected with 405 even for direct API calls. Corrections use a new
+    # expense record. Deleting is unchanged.
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = Expense.objects.filter(user=self.request.user)

@@ -5,7 +5,7 @@ import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
-import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses, updateExpense } from '../services/expenses';
+import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses } from '../services/expenses';
 
 const emptyForm = { expense_type: '', amount: '', date: '', description: '' };
 
@@ -17,7 +17,6 @@ export default function Expenses() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -46,26 +45,23 @@ export default function Expenses() {
 
   function startAdd() {
     setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10) });
-    setEditingId(null);
-    setFormError('');
-    setShowForm(true);
-  }
-
-  function startEdit(exp) {
-    setForm({
-      expense_type: exp.expense_type,
-      amount: String(exp.amount),
-      date: exp.date,
-      description: exp.description || '',
-    });
-    setEditingId(exp.id);
     setFormError('');
     setShowForm(true);
   }
 
   function validateForm() {
     if (!EXPENSE_TYPES.includes(form.expense_type)) return 'Select a valid expense type.';
-    if (!(Number(form.amount) > 0)) return 'Amount must be greater than 0.';
+    // Amount accepts whole rupees only, minimum Rs 1.
+    // Rejects 0, negatives, and decimals like 500.50.
+    if (form.amount === '' || form.amount === null || form.amount === undefined) {
+      return 'Amount must be a whole number of at least Rs 1.';
+    }
+    {
+      const n = Number(form.amount);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
+        return 'Amount must be a whole number of at least Rs 1.';
+      }
+    }
     if (!form.date) return 'Date is required.';
     if (form.date > new Date().toISOString().slice(0, 10)) return 'Date cannot be in the future.';
     return '';
@@ -87,14 +83,10 @@ export default function Expenses() {
       description: form.description.trim(),
     };
     try {
-      if (editingId) {
-        await updateExpense(editingId, payload);
-      } else {
-        await createExpense(payload);
-      }
+      // Saved expense records are locked: only creation is supported.
+      await createExpense(payload);
       setShowForm(false);
       setForm(emptyForm);
-      setEditingId(null);
       load(search.trim(), filterType);
     } catch {
       // Keep form data intact; show friendly message without technical details.
@@ -152,7 +144,7 @@ export default function Expenses() {
       {showForm && (
         <div className="card mb-3">
           <div className="card-body">
-            <h5 className="card-title">{editingId ? t('Update Expense') : t('Add Expense')}</h5>
+            <h5 className="card-title">{t('Add Expense')}</h5>
             {formError && <div className="alert alert-danger">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
@@ -172,7 +164,7 @@ export default function Expenses() {
                 <div className="col-6 col-md-3">
                   <label className="form-label">{t('Amount (Rs) *')}</label>
                   <input
-                    type="number" step="0.01" min="0"
+                    type="number" step="1" min="1"
                     className="form-control"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
@@ -199,7 +191,7 @@ export default function Expenses() {
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
-                  {saving ? t('Saving...') : editingId ? t('Update') : t('Save')}
+                  {saving ? t('Saving...') : t('Save')}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => setShowForm(false)}>
                   {t('Cancel')}
@@ -234,7 +226,7 @@ export default function Expenses() {
                   <td>{e.date}</td>
                   <td>{e.description}</td>
                   <td className="text-nowrap">
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => startEdit(e)}>{t('Edit')}</button>
+                    <span className="badge bg-secondary me-2" title={t('Saved expense records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(e.id)}>{t('Delete')}</button>
                   </td>
                 </tr>

@@ -171,10 +171,9 @@ Copy the examples and fill real values. Never commit `.env` files (both are git-
 Database configuration (`backend/.env`):
 
 ```text
-DB_ENGINE=mysql
 DB_NAME=agriworks_db
 DB_USER=root
-DB_PASSWORD=
+DB_PASSWORD=AgriWorks@123
 DB_HOST=127.0.0.1
 DB_PORT=3306
 ```

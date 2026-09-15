@@ -11,6 +11,10 @@ from .serializers import WorkSerializer
 class WorkViewSet(viewsets.ModelViewSet):
     serializer_class = WorkSerializer
     permission_classes = [IsAuthenticated]
+    # Saved work records are locked (source of truth for billing):
+    # no PUT/PATCH routes exist, so updates are rejected with 405
+    # even for direct API calls. Corrections use new records.
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = Work.objects.select_related('farmer').filter(user=self.request.user)

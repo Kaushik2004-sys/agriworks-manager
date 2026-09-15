@@ -47,6 +47,7 @@ export default function AdminLoginHistory() {
             <thead className="table-success">
               <tr>
                 <th>{t('User')}</th>
+                <th>{t('Role')}</th>
                 <th>{t('Email')}</th>
                 <th>{t('Login Date')}</th>
                 <th>{t('Login Time')}</th>
@@ -57,6 +58,9 @@ export default function AdminLoginHistory() {
               {records.map((r) => (
                 <tr key={r.id}>
                   <td>{r.username}</td>
+                  <td>{r.is_superuser
+                    ? <span className="badge bg-primary">{t('Admin')}</span>
+                    : <span className="badge bg-secondary">{t('User')}</span>}</td>
                   <td className="text-break">{r.email}</td>
                   <td className="text-nowrap">{r.login_date}</td>
                   <td className="text-nowrap">{r.login_time}</td>

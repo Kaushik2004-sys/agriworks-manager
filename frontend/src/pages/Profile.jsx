@@ -15,7 +15,7 @@ export default function Profile() {
   const [loadError, setLoadError] = useState('');
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ full_name: '', company_name: '', mobile: '' });
+  const [form, setForm] = useState({ full_name: '', last_name: '', company_name: '', mobile: '' });
   const [formError, setFormError] = useState('');
   const [formOk, setFormOk] = useState('');
   const [saving, setSaving] = useState(false);
@@ -33,6 +33,7 @@ export default function Profile() {
       setProfile(data);
       setForm({
         full_name: data.profile?.full_name || '',
+        last_name: data.profile?.last_name || '',
         company_name: data.profile?.company_name || '',
         mobile: data.profile?.mobile || '',
       });
@@ -51,6 +52,8 @@ export default function Profile() {
   function validateProfile() {
     if (!form.full_name.trim()) return 'Full Name is required.';
     if (form.full_name.trim().length > 150) return 'Full Name is too long.';
+    if (!form.last_name.trim()) return 'Last Name is required.';
+    if (form.last_name.trim().length > 150) return 'Last Name is too long.';
     if (form.company_name.trim().length > 150) return 'Company / Business Name is too long.';
     if (!/^\d{10}$/.test(form.mobile.trim())) return 'Mobile Number must be 10 digits.';
     return '';
@@ -69,6 +72,7 @@ export default function Profile() {
     try {
       const updated = await updateProfile({
         full_name: form.full_name.trim(),
+        last_name: form.last_name.trim(),
         company_name: form.company_name.trim(),
         mobile: form.mobile.trim(),
       });
@@ -153,6 +157,8 @@ export default function Profile() {
             <dl className="row mb-0">
               <dt className="col-5 col-md-4">{t('Full Name')}</dt>
               <dd className="col-7 col-md-8">{profile?.profile?.full_name || '—'}</dd>
+              <dt className="col-5 col-md-4">{t('Last Name')}</dt>
+              <dd className="col-7 col-md-8">{profile?.profile?.last_name || '—'}</dd>
               <dt className="col-5 col-md-4">{t('Company')}</dt>
               <dd className="col-7 col-md-8">{profile?.profile?.company_name || '—'}</dd>
               <dt className="col-5 col-md-4">{t('Email')}</dt>
@@ -162,13 +168,25 @@ export default function Profile() {
             </dl>
           ) : (
             <form onSubmit={handleSave}>
-              <div className="mb-3">
-                <label className="form-label">{t('Full Name *')}</label>
-                <input
-                  className="form-control"
-                  value={form.full_name}
-                  onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                />
+              <div className="row g-2">
+                <div className="col-12 col-md-6 mb-3">
+                  <label className="form-label">{t('Full Name *')}</label>
+                  <input
+                    className="form-control"
+                    value={form.full_name}
+                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    autoComplete="given-name"
+                  />
+                </div>
+                <div className="col-12 col-md-6 mb-3">
+                  <label className="form-label">{t('Last Name *')}</label>
+                  <input
+                    className="form-control"
+                    value={form.last_name}
+                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    autoComplete="family-name"
+                  />
+                </div>
               </div>
               <div className="mb-3">
                 <label className="form-label">
@@ -206,6 +224,7 @@ export default function Profile() {
                     setFormError('');
                     setForm({
                       full_name: profile?.profile?.full_name || '',
+                      last_name: profile?.profile?.last_name || '',
                       company_name: profile?.profile?.company_name || '',
                       mobile: profile?.profile?.mobile || '',
                     });

@@ -6,12 +6,22 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
-import { WORK_TYPES, createWork, deleteWork, listWorks, updateWork } from '../services/works';
+import { WORK_TYPES, createWork, deleteWork, listWorks } from '../services/works';
 
 const emptyForm = { farmer: '', work_type: '', work_date: '', field_location: '', remark: '', work_description: '', area: '', amount: '', irrigation_hours: '', irrigation_minutes: '', hourly_rate: '', rate_per_acre: '' };
 
 // Work types billed as Area x Rate per Acre (same formula as Land Leveling).
 const AREA_RATE_TYPES = ['Ploughing', 'Rotavator', 'Cultivation', 'Harvesting'];
+
+// Current local browser date as YYYY-MM-DD for date inputs. Computed fresh
+// on each call — never hardcoded and never stored — so opening the form
+// tomorrow defaults to tomorrow's date.
+function todayLocal() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
 
 // Total for irrigation time-based billing: (hours + minutes/60) x rate.
 // Returns '' while inputs are incomplete; trims trailing zeros (1250, not 1250.00).
@@ -23,11 +33,53 @@ function irrigationTotal(h, m, r) {
 }
 
 // Total for Land Leveling: Area x Rate per Acre. '' while inputs are incomplete.
+// Rounded to whole rupees for billing (area may be decimal, rate is whole).
 function landLevelingTotal(a, r) {
   if (a === '' || r === '') return '';
   const A = Number(a), R = Number(r);
   if (!Number.isFinite(A) || !Number.isFinite(R)) return '';
-  return String(Math.round(A * R * 100) / 100);
+  return String(Math.round(A * R));
+}
+
+// Area accepts decimal acres (> 0). Empty is allowed only when the caller
+// says so (Irrigation/Other where acre is optional).
+function isValidArea(value, { allowEmpty = false } = {}) {
+  if (value === '' || value === null || value === undefined) return allowEmpty;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+// Rate per Acre accepts whole rupees only, minimum Rs 1.
+// Rejects 0, negatives, and decimals like 1000.50.
+function isValidRatePerAcre(value) {
+  if (value === '' || value === null || value === undefined) return false;
+  const n = Number(value);
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 1;
+}
+
+// Rate per Hour accepts whole rupees only, minimum Rs 1.
+// Rejects 0, negatives, and decimals like 500.50.
+function isValidRatePerHour(value) {
+  if (value === '' || value === null || value === undefined) return false;
+  const n = Number(value);
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 1;
+}
+
+// Total Amount for Other is billed in whole rupees (minimum Rs 1).
+function isValidWholeTotal(value) {
+  if (value === '' || value === null || value === undefined) return false;
+  const n = Number(value);
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 1;
+}
+
+// Display stored amounts as whole rupees (1500, not 1500.00).
+// Non-whole legacy values are trimmed without adding decimals.
+function displayRupees(v) {
+  if (v === '' || v === null || v === undefined) return v;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  if (Number.isInteger(n)) return String(n);
+  return String(Math.round(n * 100) / 100);
 }
 
 export default function Works() {
@@ -40,7 +92,6 @@ export default function Works() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -82,28 +133,7 @@ export default function Works() {
   }
 
   function startAdd() {
-    setForm({ ...emptyForm, work_date: new Date().toISOString().slice(0, 10) });
-    setEditingId(null);
-    setFormError('');
-    setShowForm(true);
-  }
-
-  function startEdit(w) {
-    setForm({
-      farmer: String(w.farmer),
-      work_type: w.work_type,
-      work_date: w.work_date,
-      field_location: w.field_location === null || w.field_location === undefined ? '' : String(w.field_location),
-      remark: w.remark === null || w.remark === undefined ? '' : String(w.remark),
-      work_description: w.work_description === null || w.work_description === undefined ? '' : String(w.work_description),
-      area: w.area === null || w.area === undefined ? '' : String(w.area),
-      amount: String(w.amount),
-      irrigation_hours: w.irrigation_hours === null || w.irrigation_hours === undefined ? '' : String(w.irrigation_hours),
-      irrigation_minutes: w.irrigation_minutes === null || w.irrigation_minutes === undefined ? '' : String(w.irrigation_minutes),
-      hourly_rate: w.hourly_rate === null || w.hourly_rate === undefined ? '' : String(w.hourly_rate),
-      rate_per_acre: w.rate_per_acre === null || w.rate_per_acre === undefined ? '' : String(w.rate_per_acre),
-    });
-    setEditingId(w.id);
+    setForm({ ...emptyForm, work_date: todayLocal() });
     setFormError('');
     setShowForm(true);
   }
@@ -114,23 +144,31 @@ export default function Works() {
     if (!form.work_date) return 'Work date is required.';
     if (!form.field_location || !String(form.field_location).trim()) return 'Field / Location is required.';
     if (form.work_type === 'Other' && !String(form.work_description || '').trim()) return 'Work Description is required.';
-    if (form.work_date > new Date().toISOString().slice(0, 10)) return 'Work date cannot be in the future.';
-    if (!(Number(form.area) > 0)) {
-      // Acre is optional for Irrigation (time-based) and Other; mandatory for remaining work types.
-      if ((form.work_type === 'Irrigation' || form.work_type === 'Other') && (form.area === '' || form.area === null || form.area === undefined)) {
-        // leave empty: stored as NULL
-      } else {
-        return 'Area must be greater than 0.';
-      }
+    if (form.work_date > todayLocal()) return 'Work date cannot be in the future.';
+    // Area accepts decimals (0.5, 1.25...); rejects 0, negatives, empty/invalid.
+    // Acre is optional for Irrigation (time-based) and Other; mandatory otherwise.
+    const areaOptional = form.work_type === 'Irrigation' || form.work_type === 'Other';
+    if (!isValidArea(form.area, { allowEmpty: areaOptional })) {
+      return 'Area must be greater than 0.';
     }
     if (form.work_type === 'Irrigation') {
       if (form.irrigation_hours === '' || !Number.isInteger(Number(form.irrigation_hours)) || Number(form.irrigation_hours) < 0) return 'Hours must be 0 or more.';
       if (form.irrigation_minutes === '' || !Number.isInteger(Number(form.irrigation_minutes)) || Number(form.irrigation_minutes) < 0 || Number(form.irrigation_minutes) > 59) return 'Minutes must be between 0 and 59.';
-      if (form.hourly_rate === '' || !(Number(form.hourly_rate) >= 0)) return 'Rate per Hour must be 0 or more.';
+      if (!isValidRatePerHour(form.hourly_rate)) return 'Rate per Hour must be a whole number of at least Rs 1.';
       return '';
     }
     if (form.work_type === 'Land Leveling' || AREA_RATE_TYPES.includes(form.work_type)) {
-      if (form.rate_per_acre === '' || !(Number(form.rate_per_acre) >= 0)) return 'Rate per Acre must be 0 or more.';
+      if (!isValidRatePerAcre(form.rate_per_acre)) return 'Rate per Acre must be a whole number of at least Rs 1.';
+      return '';
+    }
+    if (form.work_type === 'Other') {
+      // Rate per Acre is optional for Other; when entered it must be
+      // a whole number of at least Rs 1.
+      const r = form.rate_per_acre;
+      if (r !== '' && r !== null && r !== undefined && !isValidRatePerAcre(r)) {
+        return 'Rate per Acre must be a whole number of at least Rs 1.';
+      }
+      if (!isValidWholeTotal(form.amount)) return 'Total Amount must be a whole number of at least Rs 1.';
       return '';
     }
     if (!(Number(form.amount) >= 0) || form.amount === '') return 'Amount cannot be negative.';
@@ -166,23 +204,40 @@ export default function Works() {
     if (form.work_type === 'Other' && (form.area === '' || form.area === null || form.area === undefined)) {
       payload.area = null;
     }
+    if (form.work_type === 'Other') {
+      // Rate per Acre is optional for Other: blank is stored as NULL,
+      // entered values are whole rupees (validated above).
+      if (form.rate_per_acre === '' || form.rate_per_acre === null || form.rate_per_acre === undefined) {
+        payload.rate_per_acre = null;
+      } else {
+        payload.rate_per_acre = form.rate_per_acre;
+      }
+      // Total Amount is billed in whole rupees.
+      payload.amount = String(Math.round(Number(form.amount)));
+    }
     if (form.work_type === 'Land Leveling' || AREA_RATE_TYPES.includes(form.work_type)) {
       payload.rate_per_acre = form.rate_per_acre;
       payload.amount = landLevelingTotal(form.area, form.rate_per_acre);
     }
     try {
-      if (editingId) {
-        await updateWork(editingId, payload);
-      } else {
-        await createWork(payload);
-      }
+      // Saved work records are locked (source of truth for billing):
+      // only creation is supported, never updates.
+      await createWork(payload);
       setShowForm(false);
       setForm(emptyForm);
-      setEditingId(null);
       load(search.trim(), filterFarmer, filterType);
-    } catch {
-      // Keep form data intact; show friendly message without technical details.
-      setFormError('Save failed. Please try again.');
+    } catch (err) {
+      // Show the backend validation message (e.g. duplicate work entry)
+      // when available; keep form data intact.
+      const data = err?.response?.data;
+      let msg = 'Save failed. Please try again.';
+      if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find((v) => typeof v === 'string' && v);
+        if (first) msg = first;
+      } else if (typeof data === 'string' && data) {
+        msg = data;
+      }
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
@@ -266,7 +321,7 @@ export default function Works() {
       {showForm && (
         <div className="card mb-3">
           <div className="card-body">
-            <h5 className="card-title">{editingId ? t('Update Work') : t('Add Work')}</h5>
+            <h5 className="card-title">{t('Add Work')}</h5>
             {formError && <div className="alert alert-danger">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
@@ -349,18 +404,18 @@ export default function Works() {
                 <div className="col-6 col-md-4">
                   <label className="form-label">{isCalculated ? t('Total Amount') : isOther ? `${t('Total Amount')} (Rs) *` : t('Amount (Rs) *')}</label>
                   <input
-                    type="number" step="0.01" min="0"
+                    type="number" step={isOther ? '1' : '0.01'} min={isOther ? '1' : '0'}
                     className="form-control"
                     value={isCalculated ? calculatedTotal : form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     readOnly={isCalculated}
                   />
                 </div>
-                {(isLandLeveling || isAreaRate) && (
+                {(isLandLeveling || isAreaRate || isOther) && (
                   <div className="col-6 col-md-4">
-                    <label className="form-label">{t('Rate per Acre')} (Rs) *</label>
+                    <label className="form-label">{t('Rate per Acre')} (Rs){isOther ? '' : ' *'}</label>
                     <input
-                      type="number" step="0.01" min="0"
+                      type="number" step="1" min="1"
                       className="form-control"
                       value={form.rate_per_acre}
                       onChange={(e) => setForm({ ...form, rate_per_acre: e.target.value })}
@@ -393,7 +448,7 @@ export default function Works() {
                     <div className="col-12 col-md-4">
                       <label className="form-label">{t('Rate per Hour')} (Rs) *</label>
                       <input
-                        type="number" step="0.01" min="0"
+                        type="number" step="1" min="1"
                         className="form-control"
                         value={form.hourly_rate}
                         onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })}
@@ -404,7 +459,7 @@ export default function Works() {
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
-                  {saving ? t('Saving...') : editingId ? t('Update') : t('Save')}
+                  {saving ? t('Saving...') : t('Save')}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => setShowForm(false)}>
                   {t('Cancel')}
@@ -439,9 +494,9 @@ export default function Works() {
                   <td>{t(w.work_type)}</td>
                   <td>{w.work_date}</td>
                   <td>{w.area}</td>
-                  <td>Rs {w.amount}</td>
+                  <td>Rs {displayRupees(w.amount)}</td>
                   <td className="text-nowrap">
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => startEdit(w)}>{t('Edit')}</button>
+                    <span className="badge bg-secondary me-2" title={t('Saved work records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(w.id)}>{t('Delete')}</button>
                   </td>
                 </tr>
