@@ -893,6 +893,22 @@ textarea:focus-visible {
   word-break: break-word;
 }
 
+/* --- Admin User Overview email column only ---
+   Bootstrap `text-break` breaks long unspaced strings character by
+   character, shredding email addresses. Email cells instead stay on one
+   line (the table scrolls inside .table-responsive); on the narrow card
+   layout they wrap by whole words, never character by character. */
+.aw-user-email {
+  white-space: nowrap;
+}
+@media (max-width: 767.98px) {
+  .aw-user-email {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+}
+
 /* Fixed bottom nav must never cover footer content on phones/tablets */
 @media (max-width: 991.98px) {
   footer {

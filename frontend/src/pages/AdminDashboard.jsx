@@ -209,7 +209,7 @@ export default function AdminDashboard() {
                         <tr key={u.username}>
                           <td data-label={t('Name')}>{u.full_name || '—'}</td>
                           <td data-label={t('Username')}>{u.username}</td>
-                          <td data-label={t('Email')} className="text-break">{u.email || '—'}</td>
+                          <td data-label={t('Email')} className="aw-user-email">{u.email || '—'}</td>
                           <td data-label={t('Mobile')} className="text-nowrap">{u.mobile || '—'}</td>
                           <td data-label={t('Role')}>{u.is_superuser
                             ? <span className="badge bg-primary">{t('Admin')}</span>
