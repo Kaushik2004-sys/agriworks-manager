@@ -3,6 +3,8 @@
 
 from datetime import datetime
 from decimal import Decimal
+import logging
+import re
 from django.contrib.auth import authenticate
 from django.db import connection
 from django.db.models import Count, Sum
@@ -11,6 +13,8 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from .throttles import LoginRateThrottle
+
+logger = logging.getLogger(__name__)
 
 
 class IsSuperUser(BasePermission):
@@ -38,6 +42,23 @@ def _client_ip(request):
     except ValidationError:
         return None
     return raw
+
+
+# TEMPORARY production diagnostic (login 500 root-cause): redact anything
+# that could be personal or secret before it reaches the logs.
+_SCRUB_PATTERNS = (
+    re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'),
+    re.compile(r'(?<!\d)[6-9]\d{9}(?!\d)'),
+    re.compile(r'\b[A-Za-z0-9]{32,}\b'),
+)
+
+
+def _scrubbed(text):
+    """Replace emails, 10-digit mobiles and token-like strings."""
+    cleaned = str(text or '')
+    for pattern in _SCRUB_PATTERNS:
+        cleaned = pattern.sub('[redacted]', cleaned)
+    return cleaned
 
 
 @api_view(['GET'])
@@ -83,76 +104,86 @@ def login_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    username = identifier
-    if '@' in identifier:
-        # Email login: resolve to the account username first. M6: email
-        # is not DB-unique, so duplicate/case-variant records raise
-        # MultipleObjectsReturned - never 500 and never pick a user
-        # arbitrarily; any non-unique lookup gets the generic error.
-        try:
+    # TEMPORARY production diagnostic: any unexpected exception below is
+    # logged (type + scrubbed message + traceback of code frames only —
+    # never request data, credentials, tokens or personal data) and then
+    # re-raised so the client still receives the existing generic 500.
+    try:
+        username = identifier
+        if '@' in identifier:
+            # Email login: resolve to the account username first. M6: email
+            # is not DB-unique, so duplicate/case-variant records raise
+            # MultipleObjectsReturned - never 500 and never pick a user
+            # arbitrarily; any non-unique lookup gets the generic error.
+            try:
+                from django.contrib.auth.models import User
+                username = User.objects.get(
+                    email__iexact=identifier.lower()).username
+            except (User.DoesNotExist, User.MultipleObjectsReturned):
+                return Response(
+                    {'error': 'Invalid email or password.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+        else:
+            # Username or Registered Mobile Number login. An existing username
+            # always wins so numeric usernames keep working as before.
             from django.contrib.auth.models import User
-            username = User.objects.get(
-                email__iexact=identifier.lower()).username
-        except (User.DoesNotExist, User.MultipleObjectsReturned):
+            if not User.objects.filter(username=identifier).exists():
+                # Mobile fallback: M1 same rule as registration/profile -
+                # exactly 10 digits starting with 6/7/8/9. Any other format
+                # is never treated as a mobile identifier and simply fails
+                # authentication with the generic error below.
+                if (identifier.isdigit() and len(identifier) == 10
+                        and identifier[0] in '6789'):
+                    from accounts.models import UserProfile
+                    matches = UserProfile.objects.filter(
+                        mobile=identifier).select_related('user')
+                    if matches.count() == 1:
+                        username = matches[0].user.username
+                    else:
+                        # Unknown or ambiguously shared number: generic error,
+                        # never pick a user arbitrarily.
+                        return Response(
+                            {'error': 'Invalid email or password.'},
+                            status=status.HTTP_401_UNAUTHORIZED,
+                        )
+
+        user = authenticate(username=username, password=password)
+        if user is None:
             return Response(
                 {'error': 'Invalid email or password.'},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-    else:
-        # Username or Registered Mobile Number login. An existing username
-        # always wins so numeric usernames keep working as before.
-        from django.contrib.auth.models import User
-        if not User.objects.filter(username=identifier).exists():
-            # Mobile fallback: M1 same rule as registration/profile -
-            # exactly 10 digits starting with 6/7/8/9. Any other format
-            # is never treated as a mobile identifier and simply fails
-            # authentication with the generic error below.
-            if (identifier.isdigit() and len(identifier) == 10
-                    and identifier[0] in '6789'):
-                from accounts.models import UserProfile
-                matches = UserProfile.objects.filter(
-                    mobile=identifier).select_related('user')
-                if matches.count() == 1:
-                    username = matches[0].user.username
-                else:
-                    # Unknown or ambiguously shared number: generic error,
-                    # never pick a user arbitrarily.
-                    return Response(
-                        {'error': 'Invalid email or password.'},
-                        status=status.HTTP_401_UNAUTHORIZED,
-                    )
 
-    user = authenticate(username=username, password=password)
-    if user is None:
-        return Response(
-            {'error': 'Invalid email or password.'},
-            status=status.HTTP_401_UNAUTHORIZED,
+        # Single active session per user: invalidate any previous token so that
+        # only this login stays valid (same rotate pattern as password change).
+        # The authtoken table already holds at most one row per user, so no
+        # model/migration change is needed. M8: rotated atomically (row-locked)
+        # so concurrent logins serialize instead of colliding with HTTP 500.
+        from .token_rotation import rotate_auth_token
+        token = rotate_auth_token(user)
+        # Immutable audit record (one NEW row per successful login; never
+        # updated). M9: client IP from REMOTE_ADDR only (forwarded headers are
+        # never trusted - no proxy setup) plus a bounded User-Agent. Both are
+        # sanitized so audit logging can never break login or store secrets.
+        from accounts.models import LoginHistory
+        LoginHistory.objects.create(
+            user=user,
+            status='Successful',
+            ip_address=_client_ip(request),
+            user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:255],
         )
-
-    # Single active session per user: invalidate any previous token so that
-    # only this login stays valid (same rotate pattern as password change).
-    # The authtoken table already holds at most one row per user, so no
-    # model/migration change is needed. M8: rotated atomically (row-locked)
-    # so concurrent logins serialize instead of colliding with HTTP 500.
-    from .token_rotation import rotate_auth_token
-    token = rotate_auth_token(user)
-    # Immutable audit record (one NEW row per successful login; never
-    # updated). M9: client IP from REMOTE_ADDR only (forwarded headers are
-    # never trusted - no proxy setup) plus a bounded User-Agent. Both are
-    # sanitized so audit logging can never break login or store secrets.
-    from accounts.models import LoginHistory
-    LoginHistory.objects.create(
-        user=user,
-        status='Successful',
-        ip_address=_client_ip(request),
-        user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:255],
-    )
-    return Response({
-        'token': token.key,
-        'username': user.username,
-        'email': user.email,
-        'message': 'Login successful.',
-    })
+        return Response({
+            'token': token.key,
+            'username': user.username,
+            'email': user.email,
+            'message': 'Login successful.',
+        })
+    except Exception as exc:
+        logger.exception(
+            'AgriWorks login internal error: %s: %s',
+            type(exc).__name__, _scrubbed(exc))
+        raise
 
 
 @api_view(['POST'])
