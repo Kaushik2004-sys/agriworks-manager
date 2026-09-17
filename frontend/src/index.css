@@ -909,6 +909,17 @@ textarea:focus-visible {
   }
 }
 
+/* --- Footer information links: one horizontal line on desktop ---
+   The seven info links need near-full footer width, so they live in
+   their own full-width row (not inside the half-width column). Below
+   desktop they keep the existing wrapping behavior to avoid any
+   horizontal overflow on tablet/mobile. */
+@media (min-width: 992px) {
+  .d-flex.footer-info-links {
+    flex-wrap: nowrap;
+  }
+}
+
 /* Fixed bottom nav must never cover footer content on phones/tablets */
 @media (max-width: 991.98px) {
   footer {

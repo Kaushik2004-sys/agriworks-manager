@@ -58,21 +58,21 @@ export default function Footer() {
                 ))}
               </div>
             )}
-            <div className="d-flex flex-wrap justify-content-md-end mt-2">
-              {infoLinks.map((l, i) => (
-                <span key={l.to} className="text-nowrap">
-                  {i > 0 && (
-                    <span className="text-white-50 mx-2" aria-hidden="true">
-                      |
-                    </span>
-                  )}
-                  <Link className="text-white text-decoration-none small" to={l.to}>
-                    {t(l.label)}
-                  </Link>
-                </span>
-              ))}
-            </div>
           </div>
+        </div>
+        <div className="footer-info-links d-flex flex-wrap justify-content-md-end mt-2">
+          {infoLinks.map((l, i) => (
+            <span key={l.to} className="text-nowrap">
+              {i > 0 && (
+                <span className="text-white-50 mx-2" aria-hidden="true">
+                  |
+                </span>
+              )}
+              <Link className="text-white text-decoration-none small" to={l.to}>
+                {t(l.label)}
+              </Link>
+            </span>
+          ))}
         </div>
         <hr className="my-3 border-light" />
         <p className="text-center small mb-0">
