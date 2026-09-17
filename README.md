@@ -22,7 +22,8 @@ AgriWorks Manager replaces the notebook with structured digital records, automat
 ## Main Features
 
 - User registration and login (email, username, or registered 10-digit mobile number), logout
-- Password reset via email link and password change
+- Authenticated sessions expire automatically after 24 hours
+- Password reset via email link (Django reset token, single-use 24-hour link; existing sessions are invalidated and re-login is required) and password change
 - Farmer management (add, view, edit, delete, search)
 - Agricultural work management, linked to one farmer per record
 - Supported work types: Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, Land Leveling
@@ -36,7 +37,7 @@ AgriWorks Manager replaces the notebook with structured digital records, automat
 - Reports (work, billing, payments, pending payments, expenses, business performance) with filters, CSV export and print layout
 - Problem reporting / support with screenshot upload
 - My Reports with Pending / In Progress / Resolved status visibility
-- Admin (superuser) functionality: system overview, problem-report management, login-history viewing
+- Admin (superuser) functionality: system overview, registered-user list with search, problem-report management, login-history viewing with search
 - Responsive Bootstrap UI for mobile, tablet and desktop
 - Multi-language support: English, Hindi, Marathi
 - Light and Dark mode
@@ -73,6 +74,16 @@ MySQL database
 ```
 
 The frontend calls the Django REST API with a per-login token (`Token <key>` in the `Authorization` header). The API is namespaced under `/api/` (for example, `/api/health/`, `/api/farmers/`, `/api/bills/`).
+
+## Deployment
+
+The application is deployed as a working web application:
+
+- Frontend: static hosting (Vercel)
+- Backend: Django served with Gunicorn, static files handled by WhiteNoise (Render)
+- Database: managed MySQL (Aiven)
+
+All secrets and environment-specific values (database credentials, `DJANGO_SECRET_KEY`, SMTP credentials, allowed hosts/CORS origins) are supplied through the hosting environments, never committed to the repository. The local setup below remains valid for development.
 
 ## Project Structure
 
@@ -216,7 +227,7 @@ Major areas under `/api/` (all except registration/login/password-reset require 
 Latest verified results against MySQL:
 
 - Django `manage.py check` → PASS
-- Backend test suite → **197/197 PASS**
+- Backend test suite → **230/230 PASS**
 - Frontend lint → 0 errors
 - Frontend build → successful
 - Migration consistency (`makemigrations --check`, unapplied migrations) → PASS
@@ -229,20 +240,19 @@ Confirmed implementation details (not a hacker-proof claim):
 
 - Token authentication; passwords are stored hashed using Django's default password hasher and are never returned by the API.
 - Business data is scoped per user at the queryset level; admin endpoints require superuser status.
-- Password-reset links are single-use, expire after 24 hours, and are delivered only to the registered email address (never in API responses).
+- Password-reset links are single-use, expire after 24 hours, and are delivered only to the registered email address (never in API responses). A successful reset invalidates all existing authentication tokens, so the user must log in again (no automatic login). SMS/OTP-based reset is not used.
 - Problem-report screenshots are content-validated images served only to the owning user or an admin (never anonymous guessable URLs).
 - Production requires a real `DJANGO_SECRET_KEY` from the environment (the dev fallback is refused at boot when `DJANGO_DEBUG` is not `True`); HTTPS/HSTS/secure cookies apply automatically outside DEBUG.
 - Keep `SECRET_KEY`, database passwords, Gmail App Passwords and API tokens out of source control (`.env` files are ignored by Git).
 
 ## Project Status
 
-Academic/college project under development and finalization. Not production-deployed.
+Academic/college project that has been implemented and deployed as a working web application. Developed as a B.Sc. IT academic project; presented as coursework, not as a commercial product.
 
 ## Future Enhancements
 
 Ideas only, not current features:
 
-- Cloud deployment
 - Automated backups
 - Advanced analytics
 - Notifications
