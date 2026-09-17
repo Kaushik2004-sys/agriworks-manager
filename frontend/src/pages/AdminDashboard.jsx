@@ -30,6 +30,7 @@ export default function AdminDashboard() {
   const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [logins, setLogins] = useState([]);
+  const [userQuery, setUserQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -63,9 +64,18 @@ export default function AdminDashboard() {
 
   const totals = data?.totals || {};
   const reportCounts = data?.problem_reports || {};
-  const recentUsers = data?.recent_users || [];
+  const users = data?.users || [];
   const recentReports = data?.recent_reports || [];
   const system = data?.system || {};
+
+  // Client-side filter over registered users (name, username, email,
+  // mobile). Case-insensitive; empty shows all.
+  const uq = userQuery.trim().toLowerCase();
+  const visibleUsers = !uq ? users : users.filter((u) => (
+    [u.full_name, u.username, u.email, u.mobile]
+      .map((v) => String(v || '').toLowerCase())
+      .some((v) => v.includes(uq))
+  ));
 
   return (
     <div className="container py-4">
@@ -165,17 +175,54 @@ export default function AdminDashboard() {
           <div className="card mb-3">
             <div className="card-body">
               <h5 className="card-title">{t('User Overview')}</h5>
-              {recentUsers.length === 0 ? (
+              <div className="mb-2" role="search">
+                <label className="visually-hidden" htmlFor="admin-user-search">{t('Search users...')}</label>
+                <input
+                  id="admin-user-search"
+                  className="form-control form-control-sm"
+                  type="search"
+                  placeholder={t('Search users...')}
+                  value={userQuery}
+                  onChange={(e) => setUserQuery(e.target.value)}
+                />
+              </div>
+              {users.length === 0 ? (
                 <p className="text-muted small mb-0">{t('No users found.')}</p>
+              ) : visibleUsers.length === 0 ? (
+                <p className="text-muted small mb-0">{t('No matching users found.')}</p>
               ) : (
-                <ul className="list-group list-group-flush">
-                  {recentUsers.map((u) => (
-                    <li key={u.username} className="list-group-item px-0 small">
-                      <b>{u.username}</b>
-                      <span className="text-muted"> ({u.date_joined})</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="table-responsive">
+                  <table className="table table-sm table-striped mb-0 aw-cards-table">
+                    <thead>
+                      <tr>
+                        <th>{t('Name')}</th>
+                        <th>{t('Username')}</th>
+                        <th>{t('Email')}</th>
+                        <th>{t('Mobile')}</th>
+                        <th>{t('Role')}</th>
+                        <th>{t('Status')}</th>
+                        <th>{t('Joined')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleUsers.map((u) => (
+                        <tr key={u.username}>
+                          <td data-label={t('Name')}>{u.full_name || '—'}</td>
+                          <td data-label={t('Username')}>{u.username}</td>
+                          <td data-label={t('Email')} className="text-break">{u.email || '—'}</td>
+                          <td data-label={t('Mobile')} className="text-nowrap">{u.mobile || '—'}</td>
+                          <td data-label={t('Role')}>{u.is_superuser
+                            ? <span className="badge bg-primary">{t('Admin')}</span>
+                            : <span className="badge bg-secondary">{t('User')}</span>}</td>
+                          <td data-label={t('Status')}>{u.is_active
+                            ? <span className="badge bg-success">{t('Active')}</span>
+                            : <span className="badge bg-secondary">{t('Inactive')}</span>}</td>
+                          <td data-label={t('Joined')} className="text-nowrap">{u.date_joined || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

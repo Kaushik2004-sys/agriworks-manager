@@ -10,6 +10,7 @@ import { getLoginHistory } from '../services/dashboard';
 export default function AdminLoginHistory() {
   const { t } = useLanguage();
   const [records, setRecords] = useState([]);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -30,6 +31,16 @@ export default function AdminLoginHistory() {
     load();
   }, []);
 
+  // Client-side filter over the loaded records (username, email, role,
+  // dates, status, IP, browser). Case-insensitive; empty shows all.
+  const q = query.trim().toLowerCase();
+  const visible = !q ? records : records.filter((r) => (
+    [r.username, r.email, r.is_superuser ? 'admin' : 'user',
+     r.login_date, r.login_time, r.status, r.ip_address, r.user_agent]
+      .map((v) => String(v || '').toLowerCase())
+      .some((v) => v.includes(q))
+  ));
+
   return (
     <div className="container py-4">
       <BackButton to="/admin/dashboard" label="Back to Dashboard" />
@@ -37,10 +48,24 @@ export default function AdminLoginHistory() {
 
       {error && <ErrorState message={error} onRetry={load} />}
 
+      <div className="mb-3" role="search">
+        <label className="visually-hidden" htmlFor="login-history-search">{t('Search login activity...')}</label>
+        <input
+          id="login-history-search"
+          className="form-control"
+          type="search"
+          placeholder={t('Search login activity...')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
       {loading ? (
         <p className="text-muted">{t('Loading login history...')}</p>
       ) : records.length === 0 ? (
         <EmptyState message="No login records found." />
+      ) : visible.length === 0 ? (
+        <EmptyState message="No matching login records found." />
       ) : (
         <div className="table-responsive">
           <table className="table table-striped table-bordered aw-cards-table">
@@ -57,7 +82,7 @@ export default function AdminLoginHistory() {
               </tr>
             </thead>
             <tbody>
-              {records.map((r) => (
+              {visible.map((r) => (
                 <tr key={r.id}>
                   <td data-label={t('User')}>{r.username}</td>
                   <td data-label={t('Role')}>{r.is_superuser

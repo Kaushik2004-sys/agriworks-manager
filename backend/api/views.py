@@ -281,6 +281,11 @@ def admin_overview_view(request):
 
     total_users = User.objects.count()
     recent_users = User.objects.order_by('-date_joined', '-id')[:5]
+    # Registered-users registry for the admin panel (superuser only).
+    # Same safe fields as recent_users plus profile name/mobile and
+    # active status - never passwords, hashes, or tokens. Additive key;
+    # the existing response structure is unchanged.
+    all_users = User.objects.order_by('-date_joined', '-id').prefetch_related('profile')
 
     reports = ProblemReport.objects.all()
     recent_reports = ProblemReport.objects.select_related('user').order_by('-created_at', '-id')[:5]
@@ -310,6 +315,18 @@ def admin_overview_view(request):
                 'date_joined': u.date_joined.date().isoformat() if u.date_joined else '',
             }
             for u in recent_users
+        ],
+        'users': [
+            {
+                'username': u.username,
+                'full_name': getattr(getattr(u, 'profile', None), 'full_name', '') or '',
+                'email': u.email,
+                'mobile': getattr(getattr(u, 'profile', None), 'mobile', '') or '',
+                'is_active': u.is_active,
+                'is_superuser': u.is_superuser,
+                'date_joined': u.date_joined.date().isoformat() if u.date_joined else '',
+            }
+            for u in all_users
         ],
         'recent_reports': [
             {
