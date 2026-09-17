@@ -105,7 +105,7 @@ export default function HelpSupport() {
               <h6 className="fw-semibold">{t('How to edit farmer information')}</h6>
               <p className="mb-2">{t('Click Edit on a farmer row, update the details and Save.')}</p>
               <h6 className="fw-semibold">{t('How to delete a farmer')}</h6>
-              <p className="mb-2">{t('Click Delete on a farmer row and confirm. Deleting a farmer will also remove linked work, bills and payments (cascade).')}</p>
+              <p className="mb-2">{t('Click Delete on a farmer row and confirm. A farmer with work records cannot be deleted; only farmers without work records can be deleted.')}</p>
               <h6 className="fw-semibold">{t('How to search/filter farmers')}</h6>
               <p className="mb-0">{t('Use the search box to filter by name, mobile or village.')}</p>
             </div>
