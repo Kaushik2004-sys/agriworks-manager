@@ -103,6 +103,28 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database: MySQL is the only supported database for this project.
 # There is intentionally no SQLite fallback — if MySQL is unreachable,
 # Django must fail loudly instead of silently using another database.
+# TLS (Aiven/Render): Aiven MySQL requires TLS. mysqlclient accepts an
+# `ssl_mode` (DISABLED/PREFERRED/REQUIRED/VERIFY_CA/VERIFY_IDENTITY) plus
+# an `ssl` dict for mysql_ssl_set() (ca/capath/cert/key/cipher), both
+# passed through Django's OPTIONS untouched. Everything comes from the
+# environment so no certificate or credential is ever hardcoded. When
+# neither variable is set, local non-TLS MySQL keeps working unchanged;
+# when set, verification is never disabled — an explicit CA gives full
+# VERIFY_IDENTITY, otherwise the requested mode (minimum REQUIRED).
+_db_options = {'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"}
+_db_ssl_mode = os.getenv('DB_SSL_MODE', '').strip().upper()
+_db_ssl_ca = os.getenv('DB_SSL_CA', '').strip()
+if _db_ssl_mode or _db_ssl_ca:
+    _db_ssl_mode = _db_ssl_mode or (
+        'VERIFY_IDENTITY' if _db_ssl_ca else 'REQUIRED')
+    if _db_ssl_mode not in ('DISABLED', 'PREFERRED', 'REQUIRED',
+                            'VERIFY_CA', 'VERIFY_IDENTITY'):
+        raise ImproperlyConfigured(
+            'Invalid DB_SSL_MODE. Use one of DISABLED, PREFERRED, '
+            'REQUIRED, VERIFY_CA, VERIFY_IDENTITY.')
+    _db_options['ssl_mode'] = _db_ssl_mode
+    if _db_ssl_ca:
+        _db_options.setdefault('ssl', {})['ca'] = _db_ssl_ca
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -111,7 +133,7 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', '127.0.0.1'),
         'PORT': os.getenv('DB_PORT', '3306'),
-        'OPTIONS': {'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"},
+        'OPTIONS': _db_options,
     }
 }
 
