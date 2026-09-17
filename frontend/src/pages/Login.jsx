@@ -105,7 +105,7 @@ export default function Login() {
   }
 
   return (
-    <div className="container py-4 aw-auth-wrap">
+    <div className="container py-4 aw-auth-wrap aw-login-farm">
       <div className="aw-brand-row">
         <img src="/logo.png" alt="AgriWorks logo" />
         <div>

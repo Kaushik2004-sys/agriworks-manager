@@ -684,6 +684,30 @@ textarea:focus-visible {
   margin-inline: auto;
 }
 
+/* --- Login page only: realistic farm backdrop (Signup untouched) ---
+   Photo: "Rice fields" by CS Sharada Prasad, CC BY 2.0
+   (https://www.flickr.com/photos/11124467@N02/9247871562).
+   Fixed full-viewport layer behind the card (no dependency). A soft
+   daylight veil + slight blur keep contrast low so the white login
+   card stays dominant. Hidden in dark mode so existing dark-theme
+   behavior is unchanged. */
+.aw-login-farm::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.16) 45%, rgba(255, 255, 255, 0.34)),
+    url('./assets/login-farm.jpg') center / cover no-repeat;
+  filter: blur(2px) brightness(1.06);
+  transform: scale(1.04);
+}
+
+[data-bs-theme="dark"] .aw-login-farm::before {
+  display: none;
+}
+
 .aw-auth-card {
   background: #fff;
   border: 1px solid var(--aw-card-border);
