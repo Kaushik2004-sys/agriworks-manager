@@ -6,6 +6,38 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
+// Inline field icons in the project's existing 24x24 stroke style
+// (same as StatIcon: currentColor, no new dependency). Decorative only.
+const FIELD_ICON_STYLE = {
+  position: 'absolute',
+  left: '0.75rem',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  width: 18,
+  height: 18,
+  pointerEvents: 'none',
+  zIndex: 6,
+};
+const FIELD_INPUT_STYLE = { paddingLeft: '2.4rem' };
+
+function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={FIELD_ICON_STYLE} className="text-muted" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c1-4 4-6 7-6s6 2 7 6" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={FIELD_ICON_STYLE} className="text-muted" aria-hidden="true" focusable="false">
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 export default function Login() {
   const { login, refreshUser } = useAuth();
   const { t } = useLanguage();
@@ -88,22 +120,28 @@ export default function Login() {
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
           <label className="form-label" htmlFor="login-id">{t('Username or Registered Mobile Number')}</label>
-          <input
-            id="login-id"
-            className="form-control"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            autoComplete="username"
-            placeholder={t('Enter username or registered mobile number')}
-          />
+          <div className="position-relative">
+            <PersonIcon />
+            <input
+              id="login-id"
+              className="form-control"
+              style={FIELD_INPUT_STYLE}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="username"
+              placeholder={t('Enter username or registered mobile number')}
+            />
+          </div>
         </div>
         <div className="mb-3">
           <label className="form-label" htmlFor="login-password">{t('Password')}</label>
           <div className="input-group">
+            <LockIcon />
             <input
               id="login-password"
               type={showPassword ? 'text' : 'password'}
               className="form-control"
+              style={FIELD_INPUT_STYLE}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
