@@ -9,8 +9,14 @@ import axios from 'axios';
 const DEV_FALLBACK_API_URL = 'http://127.0.0.1:8000/api';
 
 function resolveApiBaseUrl() {
-  const configured = (import.meta.env.VITE_API_URL || '').trim();
-  if (configured) return configured.replace(/\/+$/, '');
+  const configured = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+  if (configured) {
+    // Project architecture: the base URL always includes the /api prefix
+    // (service endpoints are relative like /login/). Accept both
+    // https://host and https://host/api so a missing suffix can never
+    // produce a bare https://host/login/ 404 in production.
+    return configured.endsWith('/api') ? configured : `${configured}/api`;
+  }
   if (import.meta.env.DEV) return DEV_FALLBACK_API_URL;
   throw new Error(
     'AgriWorks configuration error: VITE_API_URL is not set. '
