@@ -16,10 +16,8 @@ export async function createPayment(data) {
   return res.data;
 }
 
-export async function updatePayment(id, data) {
-  const res = await api.put(`/payments/${id}/`, data);
-  return res.data;
-}
+// NOTE: payments are immutable once recorded (backend rejects PUT/PATCH
+// with 405). Corrections use a new payment record, so no update helper exists.
 
 export async function deletePayment(id) {
   await api.delete(`/payments/${id}/`);

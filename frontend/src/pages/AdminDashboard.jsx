@@ -97,7 +97,7 @@ export default function AdminDashboard() {
             <p className="text-muted small mb-2">{t('No login records found.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-2">
+              <table className="table table-sm table-striped mb-2 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('User')}</th>
@@ -109,10 +109,10 @@ export default function AdminDashboard() {
                 <tbody>
                   {logins.map((h) => (
                     <tr key={h.id}>
-                      <td>{h.username}</td>
-                      <td className="text-nowrap">{h.login_date}</td>
-                      <td className="text-nowrap">{h.login_time}</td>
-                      <td><span className="badge bg-secondary">{t(h.status)}</span></td>
+                      <td data-label={t('User')}>{h.username}</td>
+                      <td data-label={t('Login Date')} className="text-nowrap">{h.login_date}</td>
+                      <td data-label={t('Login Time')} className="text-nowrap">{h.login_time}</td>
+                      <td data-label={t('Status')}><span className="badge bg-secondary">{t(h.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -132,7 +132,7 @@ export default function AdminDashboard() {
                 <p className="text-muted small mb-0">{t('No problem reports found.')}</p>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-sm table-striped mb-0">
+                  <table className="table table-sm table-striped mb-0 aw-cards-table">
                     <thead>
                       <tr>
                         <th>{t('User')}</th>
@@ -145,11 +145,11 @@ export default function AdminDashboard() {
                     <tbody>
                       {recentReports.map((r) => (
                         <tr key={r.id}>
-                          <td>{r.username}</td>
-                          <td>{t(r.problem_type)}</td>
-                          <td className="text-nowrap">{r.created_at}</td>
-                          <td><span className="badge bg-secondary">{t(r.status)}</span></td>
-                          <td>
+                          <td data-label={t('User')}>{r.username}</td>
+                          <td data-label={t('Problem Type')}>{t(r.problem_type)}</td>
+                          <td data-label={t('Date')} className="text-nowrap">{r.created_at}</td>
+                          <td data-label={t('Status')}><span className="badge bg-secondary">{t(r.status)}</span></td>
+                          <td data-label={t('Action')}>
                             <Link to="/admin/problem-reports" className="btn btn-sm btn-outline-success">{t('View')}</Link>
                           </td>
                         </tr>

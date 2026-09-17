@@ -28,11 +28,20 @@ export default function Terms() {
       </section>
 
       <section className="mb-4">
+        <h5 className="fw-semibold">{t('Mobile Number Uniqueness')}</h5>
+        <p className="small">
+          {t('Each mobile number can be registered to only one account. If you attempt to register or update your profile with a mobile number already in use by another account, the request will be rejected. You can keep your own mobile number when updating your profile.')}
+        </p>
+      </section>
+
+      <section className="mb-4">
         <h5 className="fw-semibold">{t('Account Security')}</h5>
         <ul className="small">
           <li>{t('Keep your email, username, and password confidential; do not share your login with others.')}</li>
           <li>{t('Use a strong password and log out after each session, especially on shared or public devices.')}</li>
           <li>{t('Notify the project administrator promptly if you suspect unauthorized access to your account.')}</li>
+          <li>{t('Only one active session is allowed per account. Logging in on a new device will end your previous session.')}</li>
+          <li>{t('Each successful login records the date, time, IP address, and browser information for security audit purposes.')}</li>
         </ul>
       </section>
 

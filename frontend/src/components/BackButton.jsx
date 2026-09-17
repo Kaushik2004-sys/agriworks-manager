@@ -12,13 +12,13 @@ export default function BackButton({ to, nextTo, label }) {
   return (
     <div className="d-flex gap-2 mb-2 flex-wrap">
       {to && (
-        <Link to={to} className="btn btn-outline-success btn-sm">
-          &larr; {t(label || 'Back')}
+        <Link to={to} className="btn btn-outline-success btn-sm" aria-label={t(label || 'Back')}>
+          <span aria-hidden="true">&larr;</span> {t(label || 'Back')}
         </Link>
       )}
       {nextTo && (
         <Link to={nextTo} className="btn btn-success btn-sm">
-          {t('Next')} &rarr;
+          {t('Next')} <span aria-hidden="true">&rarr;</span>
         </Link>
       )}
     </div>

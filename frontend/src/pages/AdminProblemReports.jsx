@@ -5,7 +5,7 @@ import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
-import { REPORT_STATUSES, deleteProblemReport, listProblemReports, screenshotUrl, updateProblemReportStatus } from '../services/support';
+import { REPORT_STATUSES, deleteProblemReport, fetchScreenshotUrl, listProblemReports, updateProblemReportStatus } from '../services/support';
 
 export default function AdminProblemReports() {
   const { t } = useLanguage();
@@ -76,7 +76,7 @@ export default function AdminProblemReports() {
         <EmptyState message="No problem reports found." />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('Name')}</th>
@@ -91,12 +91,12 @@ export default function AdminProblemReports() {
             <tbody>
               {visible.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.username || r.name}</td>
-                  <td className="text-break">{r.email}</td>
-                  <td>{t(r.problem_type)}</td>
-                  <td style={{ minWidth: 180 }}>{r.description}</td>
-                  <td className="text-nowrap">{String(r.created_at || '').slice(0, 10)}</td>
-                  <td>
+                  <td data-label={t('Name')}>{r.username || r.name}</td>
+                  <td data-label={t('Email')} className="text-break">{r.email}</td>
+                  <td data-label={t('Problem Type')}>{t(r.problem_type)}</td>
+                  <td data-label={t('Description')}>{r.description}</td>
+                  <td data-label={t('Date')} className="text-nowrap">{String(r.created_at || '').slice(0, 10)}</td>
+                  <td data-label={t('Status')}>
                     <select
                       className="form-select form-select-sm"
                       value={r.status}
@@ -108,16 +108,21 @@ export default function AdminProblemReports() {
                       ))}
                     </select>
                   </td>
-                  <td className="text-nowrap">
+                  <td data-label={t('Action')} className="text-nowrap">
                     {r.screenshot && (
-                      <a
+                      <button
                         className="btn btn-sm btn-outline-primary me-2"
-                        href={screenshotUrl(r.screenshot)}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            window.open(await fetchScreenshotUrl(r.screenshot), '_blank', 'noreferrer');
+                          } catch {
+                            setError('Something went wrong. Please try again.');
+                          }
+                        }}
                       >
                         {t('View')}
-                      </a>
+                      </button>
                     )}
                     <button
                       className="btn btn-sm btn-outline-danger"

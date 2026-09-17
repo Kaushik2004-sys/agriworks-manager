@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
 import { listFarmers } from '../services/farmers';
@@ -28,6 +30,8 @@ export default function Payments() {
   const [form, setForm] = useState({ payment_date: '', method: 'Cash', amount: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const bill = useMemo(
     () => bills.find((b) => String(b.id) === String(selectedBill)),
@@ -259,22 +263,41 @@ export default function Payments() {
       setShowForm(false);
       await refreshBill();
       await loadPayments(selectedBill);
-    } catch {
-      // Keep form data intact; show friendly message without technical details.
-      setFormError('Save failed. Please try again.');
+    } catch (err) {
+      // P11: show the backend message (e.g. exceeds remaining amount)
+      // like Works does; keep form data intact.
+      const data = err?.response?.data;
+      let msg = 'Save failed. Please try again.';
+      if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find((v) => typeof v === 'string' && v);
+        if (first) msg = first;
+      } else if (typeof data === 'string' && data) {
+        msg = data;
+      }
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
   }
 
+  // Same delete logic; friendlier accessible dialog instead of window.confirm.
   async function handleDelete(id) {
-    if (!window.confirm(t('Delete this payment? Bill status will update.'))) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId == null) return;
+    setDeleting(true);
     try {
-      await deletePayment(id);
+      await deletePayment(pendingDeleteId);
+      setPendingDeleteId(null);
       await refreshBill();
       await loadPayments(selectedBill);
     } catch {
       setError('Delete failed. Please try again.');
+      setPendingDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -282,7 +305,12 @@ export default function Payments() {
     <div className="container py-4">
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/bills" nextTo="/expenses" />
-      <h2 className="fw-bold">{t('Payment Management')}</h2>
+      <PageHeader
+        title="Payment Management"
+        subtitle="Farmer → Bill → Payment. You always see what is remaining."
+        actionLabel="💰 Record Payment"
+        onAction={startAdd}
+      />
 
       <form onSubmit={handleFarmerSearch} className="row g-2 mb-3">
         <div className="col-12 col-md-6">
@@ -355,24 +383,29 @@ export default function Payments() {
       {error && <ErrorState message={error} onRetry={handleRetry} />}
 
       {bill && (
-        <div className="row g-2 mb-3">
-          <div className="col-6 col-md-3"><div className="card"><div className="card-body py-2"><small className="text-muted">{t('Total')}</small><div className="fw-bold">Rs {bill.total_amount}</div></div></div></div>
-          <div className="col-6 col-md-3"><div className="card"><div className="card-body py-2"><small className="text-muted">{t('Paid')}</small><div className="fw-bold">Rs {bill.paid_amount}</div></div></div></div>
-          <div className="col-6 col-md-3"><div className="card"><div className="card-body py-2"><small className="text-muted">{t('Pending')}</small><div className="fw-bold">Rs {bill.pending_amount}</div></div></div></div>
-          <div className="col-6 col-md-3"><div className="card"><div className="card-body py-2"><small className="text-muted">{t('Status')}</small><div><span className="badge bg-secondary">{t(bill.status)}</span></div></div></div></div>
+        <div className="card mb-3 aw-form-block" aria-live="polite">
+          <div className="card-body">
+            <div className="row g-2 text-center">
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Total Bill')}</small><div className="aw-money">₹{bill.total_amount}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Paid')}</small><div className="aw-money">₹{bill.paid_amount}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Remaining')}</small><div className="aw-money aw-money-big">₹{bill.pending_amount}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Status')}</small><div><span className={bill.status === 'Paid' ? 'aw-badge aw-badge-paid' : bill.status === 'Partial' ? 'aw-badge aw-badge-partial' : 'aw-badge aw-badge-pending'}>{t(bill.status)}</span></div></div>
+            </div>
+          </div>
         </div>
       )}
 
       {showForm && (
-        <div className="card mb-3">
+        <div className="card mb-3 aw-form-block">
           <div className="card-body">
-            <h5 className="card-title">{t('Record Payment')}</h5>
-            {formError && <div className="alert alert-danger">{t(formError)}</div>}
+            <h5 className="card-title">{t('💰 Record Payment')}</h5>
+            {formError && <div className="alert alert-danger" role="alert">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
                 <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Payment date *')}</label>
+                  <label className="form-label" htmlFor="pay-date">{t('Payment date *')}</label>
                   <input
+                    id="pay-date"
                     type="date"
                     className="form-control"
                     value={form.payment_date}
@@ -380,8 +413,9 @@ export default function Payments() {
                   />
                 </div>
                 <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Method *')}</label>
+                  <label className="form-label" htmlFor="pay-method">{t('Method *')}</label>
                   <select
+                    id="pay-method"
                     className="form-select"
                     value={form.method}
                     onChange={(e) => setForm({ ...form, method: e.target.value })}
@@ -392,14 +426,16 @@ export default function Payments() {
                   </select>
                 </div>
                 <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Amount (Rs) *')}</label>
+                  <label className="form-label" htmlFor="pay-amount">{t('Amount (₹) *')}</label>
                   <input
+                    id="pay-amount"
                     type="number" step="1" min="1"
-                    className="form-control"
+                    className="form-control aw-money-big"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    placeholder="₹"
                   />
-                  <div className="form-text">{t('Whole rupees only, minimum Rs 1. Maximum allowed: Rs ')}{maxAllowed.toFixed(2)}</div>
+                  <div className="form-text">{t('Remaining to pay: ')}<strong className="aw-money">₹{maxAllowed.toFixed(2)}</strong></div>
                 </div>
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
@@ -420,12 +456,18 @@ export default function Payments() {
       ) : !selectedBill ? (
         <div className="alert alert-info">{t('Select a work / bill to view payment history.')}</div>
       ) : loading ? (
-        <p className="text-muted">{t('Loading payments...')}</p>
+        <p className="text-muted" role="status">{t('Loading payments...')}</p>
       ) : payments.length === 0 ? (
-        <EmptyState message="No payments found." />
+        <EmptyState
+          icon="💰"
+          title="No payments recorded yet."
+          message="Record the first payment for this bill."
+          actionLabel="💰 Record Payment"
+          onAction={startAdd}
+        />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('Date')}</th>
@@ -437,18 +479,28 @@ export default function Payments() {
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.payment_date}</td>
-                  <td>{t(p.method)}</td>
-                  <td>Rs {p.amount}</td>
-                  <td className="text-nowrap">
+                  <td data-label={t('Date')}>{p.payment_date}</td>
+                  <td data-label={t('Method')}>{t(p.method)}</td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{p.amount}</span></td>
+                  <td data-label={t('Actions')} className="text-nowrap">
                     <span className="badge bg-secondary me-2" title={t('Saved payment records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(p.id)}>{t('Delete')}</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(p.id)}>{t('🗑️ Delete')}</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {pendingDeleteId != null && (
+        <ConfirmDialog
+          title="Delete this payment?"
+          message="Bill status will update after deleting."
+          confirmLabel="Delete"
+          busy={deleting}
+          onCancel={() => { if (!deleting) setPendingDeleteId(null); }}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );

@@ -24,7 +24,8 @@ export default function AdminRoute({ children }) {
       </div>
     );
   }
-  if (!user || !token) {
+  // Same live storage check as ProtectedRoute (see comment there).
+  if (!user || !token || !localStorage.getItem('agriworks_token')) {
     return <Navigate to="/login" replace />;
   }
   if (!user.is_superuser) {

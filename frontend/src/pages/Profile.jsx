@@ -25,6 +25,23 @@ export default function Profile() {
   const [pwOk, setPwOk] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
 
+  // M11: extract one user-friendly message from common DRF error shapes
+  // ({field: [...]}, {non_field_errors: [...]}, {error}, {detail}, plain
+  // string). Never raw objects or stack traces; fallback when unknown.
+  function backendMessage(err, fallback) {
+    const data = err.response?.data;
+    let msg = '';
+    if (typeof data === 'string') msg = data;
+    else if (typeof data?.error === 'string') msg = data.error;
+    else if (typeof data?.detail === 'string') msg = data.detail;
+    else if (Array.isArray(data) && data.length) msg = data[0];
+    else if (data && typeof data === 'object') {
+      const first = Object.values(data).flat().find(Boolean);
+      msg = Array.isArray(first) ? first[0] : first;
+    }
+    return msg ? String(msg) : fallback;
+  }
+
   async function load() {
     setLoading(true);
     setLoadError('');
@@ -37,8 +54,18 @@ export default function Profile() {
         company_name: data.profile?.company_name || '',
         mobile: data.profile?.mobile || '',
       });
-    } catch {
-      setLoadError('Something went wrong. Please try again.');
+    } catch (err) {
+      // M11: HTTP 401/403 means the stored token was rejected - the
+      // existing AuthContext + API interceptor already clear the session
+      // and route to Login, so report a session problem. Anything without
+      // a response status is genuinely unreachable backend - never claim
+      // the session is invalid in that case.
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        setLoadError('Your session has expired. Please log in again.');
+      } else {
+        setLoadError('Cannot load profile. Check backend connection.');
+      }
     } finally {
       setLoading(false);
     }
@@ -55,7 +82,7 @@ export default function Profile() {
     if (!form.last_name.trim()) return 'Last Name is required.';
     if (form.last_name.trim().length > 150) return 'Last Name is too long.';
     if (form.company_name.trim().length > 150) return 'Company / Business Name is too long.';
-    if (!/^\d{10}$/.test(form.mobile.trim())) return 'Mobile Number must be 10 digits.';
+    if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) return 'Mobile Number must be 10 digits.';
     return '';
   }
 
@@ -79,9 +106,9 @@ export default function Profile() {
       setProfile(updated);
       setEditing(false);
       setFormOk('Profile updated successfully.');
-    } catch {
-      // Keep form data intact; no technical details.
-      setFormError('Save failed. Please try again.');
+    } catch (err) {
+      // Keep form data intact; show the actual backend validation message.
+      setFormError(backendMessage(err, 'Save failed. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -114,8 +141,9 @@ export default function Profile() {
       });
       setPwOk(res.message || 'Password changed successfully.');
       setPw({ current_password: '', new_password: '', confirm_password: '' });
-    } catch {
-      setPwError('Save failed. Please try again.');
+    } catch (err) {
+      // Same surfacing as profile save (e.g. wrong current password).
+      setPwError(backendMessage(err, 'Save failed. Please try again.'));
     } finally {
       setPwBusy(false);
     }
@@ -205,13 +233,20 @@ export default function Profile() {
               </div>
               <div className="mb-3">
                 <label className="form-label">{t('Mobile Number *')}</label>
-                <input
-                  className="form-control"
-                  value={form.mobile}
-                  onChange={(e) => setForm({ ...form, mobile: e.target.value })}
-                  maxLength={10}
-                  inputMode="numeric"
-                />
+                <div className="input-group">
+                  <span className="input-group-text" aria-hidden="true">+91</span>
+                  <input
+                    className="form-control"
+                    value={form.mobile}
+                    onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+                    maxLength={10}
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    placeholder="0000000000"
+                    pattern="[6-9][0-9]{9}"
+                    aria-label={t('Mobile Number *')}
+                  />
+                </div>
               </div>
               <div className="d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>

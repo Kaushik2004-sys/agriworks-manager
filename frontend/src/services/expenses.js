@@ -16,10 +16,8 @@ export async function createExpense(data) {
   return res.data;
 }
 
-export async function updateExpense(id, data) {
-  const res = await api.put(`/expenses/${id}/`, data);
-  return res.data;
-}
+// NOTE: expenses are immutable once recorded (backend rejects PUT/PATCH
+// with 405). Corrections use a new expense record, so no update helper exists.
 
 export async function deleteExpense(id) {
   await api.delete(`/expenses/${id}/`);

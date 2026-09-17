@@ -2,10 +2,14 @@
 // Diesel, Maintenance, Driver Wages, Other with amount/date/description.
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 import { useLanguage } from '../i18n/LanguageContext';
 import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses } from '../services/expenses';
+
+const EXPENSE_ICONS = { Diesel: '🛢️', Maintenance: '🔧', 'Driver Wages': '👷', Other: '🧾' };
 
 const emptyForm = { expense_type: '', amount: '', date: '', description: '' };
 
@@ -20,6 +24,8 @@ export default function Expenses() {
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load(searchText = search, type = filterType) {
     setLoading(true);
@@ -88,21 +94,40 @@ export default function Expenses() {
       setShowForm(false);
       setForm(emptyForm);
       load(search.trim(), filterType);
-    } catch {
-      // Keep form data intact; show friendly message without technical details.
-      setFormError('Save failed. Please try again.');
+    } catch (err) {
+      // P11: show the backend validation message like Works does; keep
+      // form data intact.
+      const data = err?.response?.data;
+      let msg = 'Save failed. Please try again.';
+      if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find((v) => typeof v === 'string' && v);
+        if (first) msg = first;
+      } else if (typeof data === 'string' && data) {
+        msg = data;
+      }
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
   }
 
+  // Same delete logic; friendlier accessible dialog instead of window.confirm.
   async function handleDelete(id) {
-    if (!window.confirm(t('Delete this expense?'))) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId == null) return;
+    setDeleting(true);
     try {
-      await deleteExpense(id);
+      await deleteExpense(pendingDeleteId);
+      setPendingDeleteId(null);
       load(search.trim(), filterType);
     } catch {
       setError('Delete failed. Please try again.');
+      setPendingDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -112,19 +137,29 @@ export default function Expenses() {
     <div className="container py-4">
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/payments" nextTo="/reports" />
-      <h2 className="fw-bold">{t('Expense Management')}</h2>
+      <PageHeader
+        title="Expense Management"
+        subtitle="Diesel, repairs, wages — write every kharcha here."
+        actionLabel="+ Add Expense"
+        actionIcon="💸"
+        onAction={startAdd}
+      />
 
-      <form className="row g-2 mb-3" onSubmit={handleSearch}>
+      <form className="row g-2 mb-3" onSubmit={handleSearch} role="search">
         <div className="col-12 col-md-5">
+          <label className="visually-hidden" htmlFor="expense-search">{t('Search expenses')}</label>
           <input
+            id="expense-search"
             className="form-control"
-            placeholder={t('Search type, description...')}
+            type="search"
+            placeholder={t('Search expenses — type, note...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <div className="col-6 col-md-3">
-          <select className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <label className="visually-hidden" htmlFor="expense-type-filter">{t('Expense type')}</label>
+          <select id="expense-type-filter" className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">{t('All types')}</option>
             {EXPENSE_TYPES.map((et) => (
               <option key={et} value={et}>{t(et)}</option>
@@ -132,25 +167,38 @@ export default function Expenses() {
           </select>
         </div>
         <div className="col-12 col-md-4 d-flex gap-2 flex-wrap">
-          <button className="btn btn-outline-success" type="submit">{t('Filter')}</button>
-          <button className="btn btn-success" type="button" onClick={startAdd}>{t('Add Expense')}</button>
+          <button className="btn btn-outline-success" type="submit">{t('🔍 Filter')}</button>
         </div>
       </form>
 
       {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterType)} />}
 
-      <div className="alert alert-secondary">{t('Total shown:')} <b>Rs {total.toFixed(2)}</b> ({expenses.length} {t('records')})</div>
+      <div className="alert alert-secondary">{t('Total shown:')} <span className="aw-money">₹{total.toFixed(2)}</span> ({expenses.length} {t('records')})</div>
 
       {showForm && (
-        <div className="card mb-3">
+        <div className="card mb-3 aw-form-block">
           <div className="card-body">
-            <h5 className="card-title">{t('Add Expense')}</h5>
-            {formError && <div className="alert alert-danger">{t(formError)}</div>}
+            <h5 className="card-title">{t('💸 Add Expense')}</h5>
+            {formError && <div className="alert alert-danger" role="alert">{t(formError)}</div>}
             <form onSubmit={handleSave}>
+              <div className="aw-chip-row mb-2" role="group" aria-label={t('Expense type')}>
+                {EXPENSE_TYPES.map((et) => (
+                  <button
+                    key={et}
+                    type="button"
+                    className="aw-chip"
+                    aria-pressed={form.expense_type === et}
+                    onClick={() => setForm({ ...form, expense_type: et })}
+                  >
+                    <span aria-hidden="true">{EXPENSE_ICONS[et] || '💸'}</span> {t(et)}
+                  </button>
+                ))}
+              </div>
               <div className="row g-2">
                 <div className="col-12 col-md-6">
-                  <label className="form-label">{t('Expense type *')}</label>
+                  <label className="form-label" htmlFor="expense-type">{t('Expense type *')}</label>
                   <select
+                    id="expense-type"
                     className="form-select"
                     value={form.expense_type}
                     onChange={(e) => setForm({ ...form, expense_type: e.target.value })}
@@ -162,17 +210,20 @@ export default function Expenses() {
                   </select>
                 </div>
                 <div className="col-6 col-md-3">
-                  <label className="form-label">{t('Amount (Rs) *')}</label>
+                  <label className="form-label" htmlFor="expense-amount">{t('Amount (₹) *')}</label>
                   <input
+                    id="expense-amount"
                     type="number" step="1" min="1"
                     className="form-control"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    placeholder="₹"
                   />
                 </div>
                 <div className="col-6 col-md-3">
-                  <label className="form-label">{t('Date *')}</label>
+                  <label className="form-label" htmlFor="expense-date">{t('Date *')}</label>
                   <input
+                    id="expense-date"
                     type="date"
                     className="form-control"
                     value={form.date}
@@ -180,12 +231,13 @@ export default function Expenses() {
                   />
                 </div>
                 <div className="col-12">
-                  <label className="form-label">{t('Description')}</label>
+                  <label className="form-label" htmlFor="expense-desc">{t('Note (optional)')}</label>
                   <input
+                    id="expense-desc"
                     className="form-control"
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder={t('Optional note, e.g. 50L diesel for tractor')}
+                    placeholder={t('e.g. 50L diesel for tractor (optional)')}
                   />
                 </div>
               </div>
@@ -203,12 +255,18 @@ export default function Expenses() {
       )}
 
       {loading ? (
-        <p className="text-muted">{t('Loading expenses...')}</p>
+        <p className="text-muted" role="status">{t('Loading expenses...')}</p>
       ) : expenses.length === 0 ? (
-        <EmptyState message="No expenses found." />
+        <EmptyState
+          icon="💸"
+          title="No expenses yet."
+          message="Write your first kharcha above."
+          actionLabel="+ Add Expense"
+          onAction={startAdd}
+        />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('Type')}</th>
@@ -221,19 +279,29 @@ export default function Expenses() {
             <tbody>
               {expenses.map((e) => (
                 <tr key={e.id}>
-                  <td>{t(e.expense_type)}</td>
-                  <td>Rs {e.amount}</td>
-                  <td>{e.date}</td>
-                  <td>{e.description}</td>
-                  <td className="text-nowrap">
+                  <td data-label={t('Type')}><span aria-hidden="true">{EXPENSE_ICONS[e.expense_type] || '💸'} </span><strong>{t(e.expense_type)}</strong></td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{e.amount}</span></td>
+                  <td data-label={t('Date')}>{e.date}</td>
+                  <td data-label={t('Description')}>{e.description || '—'}</td>
+                  <td data-label={t('Actions')} className="text-nowrap">
                     <span className="badge bg-secondary me-2" title={t('Saved expense records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(e.id)}>{t('Delete')}</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(e.id)}>{t('🗑️ Delete')}</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {pendingDeleteId != null && (
+        <ConfirmDialog
+          title="Delete this expense?"
+          message="This will remove this expense from your records."
+          confirmLabel="Delete"
+          busy={deleting}
+          onCancel={() => { if (!deleting) setPendingDeleteId(null); }}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );

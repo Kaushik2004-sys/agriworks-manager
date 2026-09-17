@@ -51,16 +51,30 @@ class RegisterSerializer(serializers.Serializer):
         typo = domain_typo_error(value)
         if typo:
             raise serializers.ValidationError(typo)
+        # QA-03: duplicate emails are still rejected (no duplicate account
+        # is created), but the message is generic like the mobile rule so
+        # the response does not reveal whether the email is registered.
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError(
-                'An account with this email already exists.')
+                'This email address cannot be used.')
         return value
 
     def validate_mobile(self, value):
         value = (value or '').strip()
-        if not re.fullmatch(r'\d{10}', value):
+        # M1: one consistent rule everywhere (registration, profile,
+        # login): exactly 10 digits, first digit 6/7/8/9. The UI shows a
+        # fixed, non-editable +91 prefix, so only these 10 digits are
+        # submitted and stored - never +91. No model/schema change.
+        if not re.fullmatch(r'[6-9]\d{9}', value):
             raise serializers.ValidationError(
                 'Mobile Number must be 10 digits.')
+        # M2 (application-level only, no unique=True / migration): one
+        # mobile number per account so mobile login always resolves to
+        # exactly one profile. Generic message that does not reveal
+        # whether the number belongs to another account.
+        if UserProfile.objects.filter(mobile=value).exists():
+            raise serializers.ValidationError(
+                'This mobile number cannot be used.')
         return value
 
     def validate(self, attrs):
@@ -78,7 +92,12 @@ class RegisterSerializer(serializers.Serializer):
         email = validated_data['email'].strip().lower()
         # Username is derived from the email prefix; suffixed until unique.
         # Existing username logins (e.g. admin) keep working unchanged.
-        base = email.split('@')[0][:140] or 'user'
+        # M14: the email validator allows characters Django forbids in
+        # usernames (e.g. '%'), so sanitize with the exact inverse of
+        # Django's UnicodeUsernameValidator (^[\w.@+-]+$) - runs of
+        # forbidden characters become '_'. Email validation itself is
+        # unchanged: every previously valid email still registers.
+        base = re.sub(r'[^\w.@+-]+', '_', email.split('@')[0][:140]) or 'user'
         username = base
         counter = 1
         while User.objects.filter(username__iexact=username).exists():

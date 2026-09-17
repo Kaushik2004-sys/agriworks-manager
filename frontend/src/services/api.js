@@ -1,9 +1,28 @@
 // Central API client for AgriWorks Manager (Phase 1 + Phase 2 auth).
 // All phases reuse this file to call Django backend.
+// M16.5: the API base URL MUST come from VITE_API_URL. Local development
+// uses the existing localhost default; a production build (no dev server)
+// without VITE_API_URL fails loudly at boot instead of silently calling
+// localhost, which could never work for real users.
 import axios from 'axios';
 
+const DEV_FALLBACK_API_URL = 'http://127.0.0.1:8000/api';
+
+function resolveApiBaseUrl() {
+  const configured = (import.meta.env.VITE_API_URL || '').trim();
+  if (configured) return configured.replace(/\/+$/, '');
+  if (import.meta.env.DEV) return DEV_FALLBACK_API_URL;
+  throw new Error(
+    'AgriWorks configuration error: VITE_API_URL is not set. '
+    + 'Supply it at build time (e.g. https://your-backend.example/api). '
+    + 'Refusing to fall back to localhost in a production build.'
+  );
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
 });
 
@@ -41,7 +60,10 @@ api.interceptors.response.use(
       if (!current || !sentToken || sentToken === current) {
         localStorage.removeItem('agriworks_token');
         if (!window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+          // replace (not href): drops the stale protected entry instead of
+          // stacking /login on top of it, so Back cannot repaint the
+          // previous-session document from history/bfcache.
+          window.location.replace('/login');
         }
       }
     }
@@ -101,5 +123,7 @@ export async function changePassword(data) {
   const res = await api.post('/change-password/', data);
   return res.data; // { token, message } - token is rotated, store the new one
 }
+
+export { API_BASE_URL };
 
 export default api;

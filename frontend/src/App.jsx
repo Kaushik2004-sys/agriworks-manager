@@ -4,44 +4,46 @@
 // Phase 10: full flow Login > Dashboard > Farmers > Work > Bills > Payments > Expenses > Reports > Logout.
 // Auth update: public signup + backend-driven password reset.
 // Profile Management: protected /profile page.
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import './App.css';
 import AppNavbar from './components/AppNavbar';
 import AdminRoute from './components/AdminRoute';
 import NotFound from './components/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
-import About from './pages/About';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminLoginHistory from './pages/AdminLoginHistory';
-import AdminProblemReports from './pages/AdminProblemReports';
-import Bills from './pages/Bills';
-import ContactSupport from './pages/ContactSupport';
-import Dashboard from './pages/Dashboard';
-import DashboardExpenses from './pages/DashboardExpenses';
-import DashboardFarmers from './pages/DashboardFarmers';
-import DashboardIncome from './pages/DashboardIncome';
-import DashboardPayments from './pages/DashboardPayments';
-import DashboardPending from './pages/DashboardPending';
-import DashboardWorks from './pages/DashboardWorks';
-import Disclaimer from './pages/Disclaimer';
-import Expenses from './pages/Expenses';
-import FAQ from './pages/FAQ';
-import Farmers from './pages/Farmers';
 import Footer from './components/Footer';
 import { useAuth } from './context/AuthContext';
 import { useLanguage } from './i18n/LanguageContext';
-import ForgotPassword from './pages/ForgotPassword';
-import HelpSupport from './pages/HelpSupport';
-import Login from './pages/Login';
-import Payments from './pages/Payments';
-import Privacy from './pages/Privacy';
-import Profile from './pages/Profile';
-import Reports from './pages/Reports';
-import ResetPassword from './pages/ResetPassword';
-import Signup from './pages/Signup';
-import Terms from './pages/Terms';
-import Works from './pages/Works';
+// P14: route-level code splitting - each page loads on demand instead of
+// inflating the initial bundle. Shell (navbar, guards, footer) stays eager.
+const About = lazy(() => import('./pages/About'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminLoginHistory = lazy(() => import('./pages/AdminLoginHistory'));
+const AdminProblemReports = lazy(() => import('./pages/AdminProblemReports'));
+const Bills = lazy(() => import('./pages/Bills'));
+const ContactSupport = lazy(() => import('./pages/ContactSupport'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DashboardExpenses = lazy(() => import('./pages/DashboardExpenses'));
+const DashboardFarmers = lazy(() => import('./pages/DashboardFarmers'));
+const DashboardIncome = lazy(() => import('./pages/DashboardIncome'));
+const DashboardPayments = lazy(() => import('./pages/DashboardPayments'));
+const DashboardPending = lazy(() => import('./pages/DashboardPending'));
+const DashboardWorks = lazy(() => import('./pages/DashboardWorks'));
+const Disclaimer = lazy(() => import('./pages/Disclaimer'));
+const Expenses = lazy(() => import('./pages/Expenses'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Farmers = lazy(() => import('./pages/Farmers'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const HelpSupport = lazy(() => import('./pages/HelpSupport'));
+const Login = lazy(() => import('./pages/Login'));
+const Payments = lazy(() => import('./pages/Payments'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Reports = lazy(() => import('./pages/Reports'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Signup = lazy(() => import('./pages/Signup'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Works = lazy(() => import('./pages/Works'));
 
 // Home shows the Admin Dashboard to superusers and the normal
 // business dashboard to everyone else (never the reverse).
@@ -55,25 +57,36 @@ function HomeRoute() {
 
 // Already-authenticated users visiting /login or /signup are sent Home
 // with history replacement, so auth pages never linger behind a session.
-// If a token is stored but the session could not be verified (backend
-// unreachable), the login form is NOT shown as stale content; a retry
-// prompt is shown instead until verification succeeds or fails.
+// If a stale token is stored but the session could not be verified
+// (backend unreachable), the auth form is still shown: a non-blocking
+// warning with Retry is displayed on top, plus an option to discard the
+// stale saved session. The login/signup page must never be replaced by
+// a dead-end error screen.
 function GuestRoute({ children }) {
-  const { user, token, loading, authError, revalidate } = useAuth();
+  const { user, token, loading, authError, revalidate, logout } = useAuth();
   const { t } = useLanguage();
   if (loading) {
-    return null;
+    return <div className="container py-4 text-muted" role="status">{t('Loading...')}</div>;
   }
-  if (user && token) {
+  // Live storage check mirrors the route guards: a stale in-memory session
+  // (token already cleared) must still render the auth form. Without this,
+  // GuestRoute and the guards could bounce against each other.
+  if (user && token && localStorage.getItem('agriworks_token')) {
     return <Navigate to="/" replace />;
   }
   if (token && authError === 'network') {
     return (
       <div className="container py-4">
         <div className="alert alert-warning">{t('Could not verify your session. Please check your connection and retry.')}</div>
-        <button className="btn btn-success" type="button" onClick={() => revalidate()}>
-          {t('Retry')}
-        </button>
+        <div className="d-flex gap-2 flex-wrap mb-3">
+          <button className="btn btn-success" type="button" onClick={() => revalidate()}>
+            {t('Retry')}
+          </button>
+          <button className="btn btn-outline-secondary" type="button" onClick={() => logout()}>
+            {t('Clear saved login')}
+          </button>
+        </div>
+        {children}
       </div>
     );
   }
@@ -137,10 +150,12 @@ function CollapseStaleHistory() {
 }
 
 function App() {
+  const { t } = useLanguage();
   return (
     <>
       <CollapseStaleHistory />
       <AppNavbar />
+      <Suspense fallback={<div className="container py-4 text-muted">{t('Loading')}</div>}>
       <Routes>
         <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
         <Route path="/signup" element={<GuestRoute><Signup /></GuestRoute>} />
@@ -301,6 +316,7 @@ function App() {
           }
         />
       </Routes>
+      </Suspense>
       <Footer />
     </>
   );

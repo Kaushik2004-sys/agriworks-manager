@@ -67,7 +67,7 @@ export default function DashboardExpenses() {
             <p className="text-muted small mb-0">{t('No expenses.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-0">
+              <table className="table table-sm table-striped mb-0 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('Type')}</th>
@@ -79,10 +79,10 @@ export default function DashboardExpenses() {
                 <tbody>
                   {expenses.map((e) => (
                     <tr key={e.id}>
-                      <td>{t(e.expense_type)}</td>
-                      <td>{e.date}</td>
-                      <td>Rs {e.amount}</td>
-                      <td>{e.description || '—'}</td>
+                      <td data-label={t('Type')}>{t(e.expense_type)}</td>
+                      <td data-label={t('Date')}>{e.date}</td>
+                      <td data-label={t('Amount')}>Rs {e.amount}</td>
+                      <td data-label={t('Description')}>{e.description || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

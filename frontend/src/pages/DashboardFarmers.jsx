@@ -55,7 +55,7 @@ export default function DashboardFarmers() {
             <p className="text-muted small mb-0">{t('No farmers.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-0">
+              <table className="table table-sm table-striped mb-0 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('Name')}</th>
@@ -66,9 +66,9 @@ export default function DashboardFarmers() {
                 <tbody>
                   {farmers.map((f) => (
                     <tr key={f.id}>
-                      <td>{f.name}</td>
-                      <td>{f.mobile}</td>
-                      <td>{f.village}</td>
+                      <td data-label={t('Name')}>{f.name}</td>
+                      <td data-label={t('Mobile')}>{f.mobile}</td>
+                      <td data-label={t('Village')}>{f.village}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,6 +1,7 @@
 # Auth update: register + password-reset endpoints.
 # Profile Management: view/update own profile + change password.
 # Existing login/logout in api/views.py are preserved (login extended for email).
+import logging
 import re
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -10,11 +11,18 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from api.throttles import (
+    PasswordResetConfirmRateThrottle,
+    PasswordResetRateThrottle,
+    RegisterRateThrottle,
+)
 from .models import UserProfile
 from .serializers import RegisterSerializer
+
+logger = logging.getLogger(__name__)
 
 token_generator = PasswordResetTokenGenerator()
 
@@ -33,6 +41,7 @@ def profile_dict(user):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register_view(request):
     """Create a new account. Company name is optional."""
     serializer = RegisterSerializer(data=request.data)
@@ -52,14 +61,16 @@ def register_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def password_reset_request_view(request):
-    """Step 1: user submits email; backend emails a reset link.
+    """Step 1: user submits their registered email address; backend emails
+    a single-use reset link.
 
-    The reset link/token is ONLY sent to the registered email address and is
-    NEVER included in the API response, console output for the website, or UI.
-    Unknown emails get an error (no token is generated, no email is sent).
-    Email-service config still required for production (see .env.example):
-      EMAIL_BACKEND=smtp, EMAIL_HOST/PORT/USER/PASSWORD, DEFAULT_FROM_EMAIL.
+    The reset token is ONLY sent to the registered email address and is
+    NEVER included in the API response, logs, or UI. Anti-enumeration
+    (no model/schema change): unknown AND ambiguous (duplicate) emails get
+    the exact same 200 response as registered ones - no token is generated
+    and no email is sent, but the caller cannot tell the difference.
     """
     email = (request.data.get('email') or '').strip().lower()
     if not email:
@@ -73,11 +84,18 @@ def password_reset_request_view(request):
     if typo:
         return Response({'error': typo},
                         status=status.HTTP_400_BAD_REQUEST)
+    # Single generic payload so status code and body never reveal whether
+    # an account exists for the address.
+    generic_response = {'message': 'If an account exists with this email '
+                                   'address, a password reset link has '
+                                   'been sent.'}
     try:
         user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
-        return Response({'error': 'No account found with this email address.'},
-                        status=status.HTTP_404_NOT_FOUND)
+    except (User.DoesNotExist, User.MultipleObjectsReturned):
+        # Email is not DB-unique: unknown AND ambiguous addresses get the
+        # same safe generic response - no token, no email, no existence
+        # leak, and never an arbitrary account choice.
+        return Response(generic_response)
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = token_generator.make_token(user)
@@ -85,27 +103,38 @@ def password_reset_request_view(request):
                        'http://localhost:5173').rstrip('/')
     reset_link = f'{frontend}/reset-password?uid={uid}&token={token}'
 
-    subject = 'AgriWorks Manager - Password Reset'
+    subject = 'Reset your AgriWorks Manager password'
     body = (f'Hello {user.first_name or user.username},\n\n'
-            f'Reset your password using this link:\n{reset_link}\n\n'
-            f'If you did not request this, please ignore this email.')
+            f'We received a request to reset your AgriWorks Manager '
+            f'password.\n\n'
+            f'Use the following link to create a new password:\n'
+            f'{reset_link}\n\n'
+            f'This link will expire after the configured password-reset '
+            f'timeout.\n\n'
+            f'If you did not request this password reset, you can safely '
+            f'ignore this email.')
     try:
         send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [user.email],
                   fail_silently=False)
     except Exception:
+        # Never expose SMTP internals, credentials, or the token. The
+        # failure is logged server-side without secrets for debugging.
+        logger.warning('Password reset email could not be sent.')
         return Response(
-            {'error': 'Could not send the reset email. '
+            {'error': 'Could not send the password reset email. '
                       'Please try again later.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return Response({'message': 'Password reset link has been sent '
-                                'to your registered email address.'})
+    return Response(generic_response)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetConfirmRateThrottle])
 def password_reset_confirm_view(request):
-    """Step 2: set a new password using the uid/token from the reset link."""
+    """Step 2: set a new password using the uid/token from the reset link.
+
+    All token failures share one generic message. A used token becomes
+    invalid as soon as the password changes (single-use in practice)."""
     uid = request.data.get('uid') or ''
     token = request.data.get('token') or ''
     new_password = request.data.get('new_password') or ''
@@ -150,7 +179,7 @@ def _own_profile_response(user):
     }
 
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def profile_view(request):
     """View or update ONLY the logged-in user's own profile.
@@ -159,24 +188,35 @@ def profile_view(request):
     Email (read-only), Mobile.
     PUT accepts full_name (required), last_name (required),
     company_name (optional), mobile (10 digits).
+    P10: PATCH accepts any subset - missing fields keep their stored
+    values, supplied fields follow the same rules as PUT.
     Any `email` sent is ignored - it stays read-only.
     """
     user = request.user
     if request.method == 'GET':
         return Response(_own_profile_response(user))
 
-    full_name = (request.data.get('full_name') or '').strip()
-    last_name = (request.data.get('last_name') or '').strip()
-    company_name = (request.data.get('company_name') or '').strip()
-    mobile = (request.data.get('mobile') or '').strip()
+    data = request.data
+    partial = request.method == 'PATCH'
+    current = profile_dict(user) if partial else None
 
-    if not full_name:
+    def _resolve(name):
+        if partial and name not in data:
+            return current.get(name) or ''
+        return data.get(name) or ''
+
+    full_name = _resolve('full_name').strip()
+    last_name = _resolve('last_name').strip()
+    company_name = _resolve('company_name').strip()
+    mobile = _resolve('mobile').strip()
+
+    if not full_name and (not partial or 'full_name' in data):
         return Response({'error': 'Full Name is required.'},
                         status=status.HTTP_400_BAD_REQUEST)
     if len(full_name) > 150:
         return Response({'error': 'Full Name is too long.'},
                         status=status.HTTP_400_BAD_REQUEST)
-    if not last_name:
+    if not last_name and (not partial or 'last_name' in data):
         return Response({'error': 'Last Name is required.'},
                         status=status.HTTP_400_BAD_REQUEST)
     if len(last_name) > 150:
@@ -185,9 +225,19 @@ def profile_view(request):
     if len(company_name) > 150:
         return Response({'error': 'Company / Business Name is too long.'},
                         status=status.HTTP_400_BAD_REQUEST)
-    if not re.fullmatch(r'\d{10}', mobile):
-        return Response({'error': 'Mobile Number must be 10 digits.'},
-                        status=status.HTTP_400_BAD_REQUEST)
+    # M1: same rule as registration/login - exactly 10 digits starting
+    # with 6/7/8/9 (+91 stays UI-only, never stored). M2 (app-level only,
+    # no schema change): another user's number cannot be taken, while
+    # keeping your own number is always allowed. On PATCH the stored
+    # number is left alone unless a new one is supplied.
+    if not partial or 'mobile' in data:
+        if not re.fullmatch(r'[6-9]\d{9}', mobile):
+            return Response({'error': 'Mobile Number must be 10 digits.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if UserProfile.objects.filter(mobile=mobile).exclude(
+                user=user).exists():
+            return Response({'error': 'This mobile number cannot be used.'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
     profile, _ = UserProfile.objects.get_or_create(
         user=user, defaults={'full_name': full_name,
@@ -196,6 +246,9 @@ def profile_view(request):
     profile.company_name = company_name
     profile.mobile = mobile
     profile.save()
+    # PATCH pre-read the profile for fallbacks, caching the pre-update row
+    # on the user - repoint the relation so the response shows saved values.
+    user.profile = profile
     # Keep the display names in sync; email is never changed here.
     # Last name uses the built-in User.last_name column (no new column).
     if user.first_name != full_name or user.last_name != last_name:
@@ -240,7 +293,8 @@ def change_password_view(request):
     user.set_password(new_password)
     user.save()
     # Rotate the token: old sessions stop working, current one continues.
-    Token.objects.filter(user=user).delete()
-    token = Token.objects.create(user=user)
+    # M8: same atomic rotation as login so concurrent requests serialize.
+    from api.token_rotation import rotate_auth_token
+    token = rotate_auth_token(user)
     return Response({'token': token.key,
                      'message': 'Password changed successfully.'})

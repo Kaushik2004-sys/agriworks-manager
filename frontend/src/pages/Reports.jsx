@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { REPORT_TYPES, getReport } from '../services/reports';
@@ -11,7 +12,15 @@ import { REPORT_TYPES, getReport } from '../services/reports';
 function toCSV(rows) {
   if (!rows || rows.length === 0) return '';
   const headers = Object.keys(rows[0]);
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const esc = (v) => {
+    let s = String(v ?? '');
+    // P7: neutralize spreadsheet formula injection. Quoting alone does not
+    // stop Excel/LibreOffice from evaluating a cell, so values starting
+    // with = + - @ (or tab/CR) get a single-quote prefix, which forces
+    // text interpretation while keeping the visible value identical.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
   return [headers.join(','), ...rows.map((r) => headers.map((h) => esc(r[h])).join(','))].join('\n');
 }
 
@@ -145,7 +154,12 @@ export default function Reports() {
         )}
       </div>
 
-      <h2 className="fw-bold d-print-none">{t('Reports')}</h2>
+      <div className="d-print-none">
+        <PageHeader
+          title="Reports"
+          subtitle="Simple registers — pick a type, choose dates, print or save."
+        />
+      </div>
 
       <div className="row g-2 mb-3 d-print-none">
         {REPORT_TYPES.map((r) => (
@@ -164,13 +178,16 @@ export default function Reports() {
         <div className="card-body">
           <div className="row g-2">
             <div className="col-12 col-md-3">
+              <label className="visually-hidden" htmlFor="report-search">{t('Search reports')}</label>
               <input
+                id="report-search"
                 className="form-control" placeholder={t('Search...')}
                 value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               />
             </div>
             <div className="col-6 col-md-2">
-              <select className="form-select" value={filters.farmer} onChange={(e) => setFilters({ ...filters, farmer: e.target.value })}>
+              <label className="visually-hidden" htmlFor="report-farmer">{t('Select Farmer')}</label>
+              <select id="report-farmer" className="form-select" value={filters.farmer} onChange={(e) => setFilters({ ...filters, farmer: e.target.value })}>
                 <option value="">{t('All farmers')}</option>
                 {farmers.map((f) => (
                   <option key={f.id} value={f.id}>{f.name}</option>
@@ -274,13 +291,13 @@ export default function Reports() {
               <EmptyState message="No records found for the selected filters." />
             ) : (
               <div className="table-responsive report-print-table">
-                <table className="table table-striped table-bordered">
+                <table className="table table-striped table-bordered aw-cards-table">
                   <thead className="table-success">
                     <tr>{columns.map((c) => <th key={c}>{t(COLUMN_LABELS[c] || c)}</th>)}</tr>
                   </thead>
                   <tbody>
                     {records.map((r, i) => (
-                      <tr key={i}>{columns.map((c) => <td key={c}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
+                      <tr key={i}>{columns.map((c) => <td key={c} data-label={t(COLUMN_LABELS[c] || c)}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
                     ))}
                   </tbody>
                 </table>

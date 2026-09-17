@@ -43,7 +43,7 @@ export default function AdminLoginHistory() {
         <EmptyState message="No login records found." />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('User')}</th>
@@ -52,19 +52,23 @@ export default function AdminLoginHistory() {
                 <th>{t('Login Date')}</th>
                 <th>{t('Login Time')}</th>
                 <th>{t('Status')}</th>
+                <th>{t('IP Address')}</th>
+                <th>{t('User Agent')}</th>
               </tr>
             </thead>
             <tbody>
               {records.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.username}</td>
-                  <td>{r.is_superuser
+                  <td data-label={t('User')}>{r.username}</td>
+                  <td data-label={t('Role')}>{r.is_superuser
                     ? <span className="badge bg-primary">{t('Admin')}</span>
                     : <span className="badge bg-secondary">{t('User')}</span>}</td>
-                  <td className="text-break">{r.email}</td>
-                  <td className="text-nowrap">{r.login_date}</td>
-                  <td className="text-nowrap">{r.login_time}</td>
-                  <td><span className="badge bg-secondary">{t(r.status)}</span></td>
+                  <td data-label={t('Email')} className="text-break">{r.email}</td>
+                  <td data-label={t('Login Date')} className="text-nowrap">{r.login_date}</td>
+                  <td data-label={t('Login Time')} className="text-nowrap">{r.login_time}</td>
+                  <td data-label={t('Status')}><span className="badge bg-secondary">{t(r.status)}</span></td>
+                  <td data-label={t('IP Address')} className="text-nowrap">{r.ip_address || '—'}</td>
+                  <td data-label={t('User Agent')} className="text-break">{r.user_agent || '—'}</td>
                 </tr>
               ))}
             </tbody>

@@ -62,7 +62,7 @@ export default function DashboardWorks() {
             <p className="text-muted small mb-0">{t('No work records.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-0">
+              <table className="table table-sm table-striped mb-0 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('Farmer')}</th>
@@ -75,11 +75,11 @@ export default function DashboardWorks() {
                 <tbody>
                   {works.map((w) => (
                     <tr key={w.id}>
-                      <td>{w.farmer_name || '—'}</td>
-                      <td>{t(w.work_type)}</td>
-                      <td>{w.work_date}</td>
-                      <td>{w.area}</td>
-                      <td>Rs {w.amount}</td>
+                      <td data-label={t('Farmer')}>{w.farmer_name || '—'}</td>
+                      <td data-label={t('Work Type')}>{t(w.work_type)}</td>
+                      <td data-label={t('Date')}>{w.work_date}</td>
+                      <td data-label={t('Area')}>{w.area}</td>
+                      <td data-label={t('Amount')}>Rs {w.amount}</td>
                     </tr>
                   ))}
                 </tbody>

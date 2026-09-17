@@ -57,6 +57,16 @@ class Work(models.Model):
 
     class Meta:
         ordering = ['-work_date', '-id']
+        # P2: database backstop for the intended duplicate rule (same user
+        # + farmer + work type + date). The serializer keeps the friendly
+        # app-level 400; this constraint wins any concurrent race and the
+        # view converts it to the same 400 instead of HTTP 500.
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'farmer', 'work_type', 'work_date'],
+                name='unique_work_per_farmer_type_date',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.work_type} for {self.farmer.name} on {self.work_date}'

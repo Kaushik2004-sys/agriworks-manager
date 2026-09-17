@@ -63,6 +63,27 @@ export default function Privacy() {
       </section>
 
       <section className="mb-4">
+        <h5 className="fw-semibold">{t('Login History')}</h5>
+        <p className="small">
+          {t('Each successful login creates an audit record with the date, time, IP address, and browser/device information (User-Agent). This is used for security monitoring and account activity review. Login history is accessible only to administrators.')}
+        </p>
+      </section>
+
+      <section className="mb-4">
+        <h5 className="fw-semibold">{t('Problem Reports and Screenshots')}</h5>
+        <p className="small">
+          {t('When you submit a problem report, your name, email, problem type, description, and optional screenshot image are stored. Screenshots are stored as uploaded files. Problem reports are visible to you and administrators.')}
+        </p>
+      </section>
+
+      <section className="mb-4">
+        <h5 className="fw-semibold">{t('Authentication Data')}</h5>
+        <p className="small">
+          {t('Your authentication token is stored to maintain your session. You can log in using your email, username, or registered mobile number (10 digits). Passwords are hashed and never stored in plain text. Only one active session per account is allowed — a new login invalidates the previous token.')}
+        </p>
+      </section>
+
+      <section className="mb-4">
         <h5 className="fw-semibold">{t('Data Use and Protection')}</h5>
         <ul className="small">
           <li>{t('Your records are isolated per account — you can access only the data entered under your own login.')}</li>

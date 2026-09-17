@@ -15,10 +15,8 @@ export async function createBill(data) {
   return res.data;
 }
 
-export async function updateBill(id, data) {
-  const res = await api.put(`/bills/${id}/`, data);
-  return res.data;
-}
+// NOTE: bills are immutable once generated (backend rejects PUT/PATCH
+// with 405). Corrections use a new bill record, so no update helper exists.
 
 export async function deleteBill(id) {
   await api.delete(`/bills/${id}/`);

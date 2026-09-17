@@ -77,6 +77,10 @@ export function AuthProvider({ children }) {
     let inFlight = false;
     async function beat() {
       if (stopped || inFlight) return;
+      // P12: skip the heartbeat while the tab is hidden - the Pageshow /
+      // online handlers revalidate on return, so no session change is
+      // missed and no useless /me/ traffic is sent in the background.
+      if (typeof document !== 'undefined' && document.hidden) return;
       if (!localStorage.getItem('agriworks_token')) return;
       inFlight = true;
       try {
@@ -93,7 +97,8 @@ export function AuthProvider({ children }) {
           setUser(null);
           setAuthError('unauthorized');
           if (!window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login';
+            // replace (not href): same reason as the api.js 401 handler.
+            window.location.replace('/login');
           }
         }
       } finally {
@@ -125,6 +130,14 @@ export function AuthProvider({ children }) {
       if (!localStorage.getItem('agriworks_token')) {
         resetSync();
       } else {
+        // A bfcache restore paints the frozen previous-session document
+        // (with its already-fetched lists) before React re-runs. Drop the
+        // in-memory user first so guards render "Checking login..." instead
+        // of stale records, then revalidate the CURRENT session in the
+        // background. Same end state as a fresh load, no navigation here.
+        setUser(null);
+        setAuthError(null);
+        setLoading(true);
         verifyRef.current({ background: true });
       }
     }
@@ -136,13 +149,25 @@ export function AuthProvider({ children }) {
         resetSync();
       }
     }
+    // Back/Forward inside the SPA re-checks the session against the server
+    // without blocking the render: if the token died (expiry, rotation by a
+    // new login elsewhere, server-side logout), the next 401 clears state
+    // and the guards bounce to Login via replace. Never navigates itself,
+    // so normal in-session Back/Forward keeps working and cannot loop.
+    function onPopState() {
+      if (localStorage.getItem('agriworks_token')) {
+        verifyRef.current({ background: true });
+      }
+    }
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', onOnline);
     window.addEventListener('storage', onStorage);
+    window.addEventListener('popstate', onPopState);
     return () => {
       window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('popstate', onPopState);
     };
   }, []);
 

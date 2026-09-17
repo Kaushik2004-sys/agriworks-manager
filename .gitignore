@@ -1,0 +1,52 @@
+# Root .gitignore for AgriWorks Manager
+# Prevent accidental commits of secrets, databases, and backups
+
+# Environment files with credentials
+.env
+.env.local
+.env.*.local
+
+# Database files
+db.sqlite3
+db.sqlite3.backup.txt
+db.sqlite3.backup
+*.db
+*.sqlite
+*.sqlite3
+
+# MySQL backups
+mysql_backup/
+
+# Static and media
+backend/staticfiles/
+backend/media/
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Backup and dump files
+*.backup*
+*.bak
+*.sql
+*.dump

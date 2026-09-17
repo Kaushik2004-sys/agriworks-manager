@@ -67,7 +67,7 @@ export default function DashboardPayments() {
             <p className="text-muted small mb-0">{t('No payments received.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-0">
+              <table className="table table-sm table-striped mb-0 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('Farmer')}</th>
@@ -80,11 +80,11 @@ export default function DashboardPayments() {
                 <tbody>
                   {payments.map((p) => (
                     <tr key={p.id}>
-                      <td>{p.farmer_name || '—'}</td>
-                      <td>#{p.bill_id ?? p.bill}</td>
-                      <td>{p.payment_date}</td>
-                      <td>{t(p.method)}</td>
-                      <td>Rs {p.amount}</td>
+                      <td data-label={t('Farmer')}>{p.farmer_name || '—'}</td>
+                      <td data-label={t('Bill')}>#{p.bill_id ?? p.bill}</td>
+                      <td data-label={t('Date')}>{p.payment_date}</td>
+                      <td data-label={t('Method')}>{t(p.method)}</td>
+                      <td data-label={t('Amount')}>Rs {p.amount}</td>
                     </tr>
                   ))}
                 </tbody>

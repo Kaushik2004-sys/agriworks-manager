@@ -1,6 +1,6 @@
 # Phase 5: Bill serializer with validation + computed amounts.
-from datetime import date
 from decimal import Decimal
+from django.utils import timezone
 from rest_framework import serializers
 from works.models import Work
 from .models import Bill
@@ -35,9 +35,17 @@ class BillSerializer(serializers.ModelSerializer):
         }
 
     def get_paid_amount(self, obj):
+        # P5: prefer the page-level annotation when the view provided it;
+        # fall back to the model aggregate otherwise. Same values either way.
+        annotated = getattr(obj, 'paid_sum', None)
+        if annotated is not None or hasattr(obj, 'paid_sum'):
+            return str(annotated or 0)
         return str(obj.get_paid_amount())
 
     def get_pending_amount(self, obj):
+        annotated = getattr(obj, 'paid_sum', None)
+        if annotated is not None or hasattr(obj, 'paid_sum'):
+            return str(obj.total_amount - (annotated or 0))
         return str(obj.get_pending_amount())
 
     def validate_work(self, value):
@@ -53,12 +61,20 @@ class BillSerializer(serializers.ModelSerializer):
         return value
 
     def validate_bill_date(self, value):
-        if value > date.today():
+        # P8: compare against the Asia/Kolkata local date (see works).
+        if value > timezone.localdate():
             raise serializers.ValidationError('Bill date cannot be in the future.')
         return value
 
     def validate_total_amount(self, value):
-        if value is None or Decimal(value) <= 0:
+        # Defensive coercion: malformed input is a 400, never a 500
+        # (DRF DecimalField normally rejects it first).
+        try:
+            dec = Decimal(value)
+        except Exception:
+            raise serializers.ValidationError(
+                'Total amount must be greater than 0.')
+        if value is None or dec <= 0:
             raise serializers.ValidationError('Total amount must be greater than 0.')
         return value
 

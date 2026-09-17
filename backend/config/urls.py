@@ -29,11 +29,18 @@ urlpatterns = [
     path('api/', include('support.urls')),
 ]
 
-# Uploaded screenshots are served by Django only in DEBUG (local use).
+# Uploaded files are served by Django only in DEBUG (local use).
 # Production deployments need separate media serving for MEDIA_ROOT.
+# P3: problem screenshots are NEVER served anonymously - they are only
+# available through the authenticated problem-screenshots API view, so
+# the DEBUG static route explicitly excludes that directory.
 from django.conf import settings
 
 if settings.DEBUG:
-    from django.conf.urls.static import static
+    from django.urls import re_path
+    from django.views.static import serve
 
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += [
+        re_path(r'^media/(?!problem_screenshots/)(?P<path>.*)$', serve,
+                {'document_root': settings.MEDIA_ROOT}),
+    ]

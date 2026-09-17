@@ -7,17 +7,17 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { getDashboard } from '../services/dashboard';
 
-function StatCard({ icon, label, value, link, linkText }) {
+// Simple rural-friendly card: ICON + TITLE + VALUE + SHORT DESCRIPTION.
+function StatCard({ emoji, label, value, desc, link, linkText }) {
   const { t } = useLanguage();
   return (
     <div className="col-6 col-md-4 col-lg-3">
-      <div className="card h-100 position-relative stat-card">
+      <div className="card h-100 position-relative stat-card aw-stat-card">
         <div className="card-body py-3">
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span className="text-success d-inline-flex">{icon}</span>
-            <small className="text-muted">{label}</small>
-          </div>
-          <div className="fw-bold fs-5">{value}</div>
+          <div className="aw-stat-icon" aria-hidden="true">{emoji}</div>
+          <div className="aw-stat-title">{label}</div>
+          <div className="aw-stat-value">{value}</div>
+          {desc && <div className="aw-stat-desc">{desc}</div>}
           {link && <Link className="small stretched-link" to={link}>{linkText || t('View')}</Link>}
         </div>
       </div>
@@ -32,11 +32,20 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // P11: extracted so a failed load offers the same Retry affordance
+  // as every other data page instead of a dead-end message.
+  function load() {
+    setLoading(true);
+    setError('');
     getDashboard()
       .then(setData)
       .catch(() => setError('Cannot load dashboard. Start backend with: python manage.py runserver'))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) return <div className="container py-4 text-muted">{t('Loading dashboard...')}</div>;
@@ -46,6 +55,9 @@ export default function Dashboard() {
       <div className="container py-4">
         <h2 className="fw-bold">{t('Welcome,')} {user?.profile?.full_name || ''}</h2>
         <div className="alert alert-danger mt-3">{t(error)}</div>
+        <button className="btn btn-success" type="button" onClick={load}>
+          {t('Retry')}
+        </button>
       </div>
     );
   }
@@ -62,13 +74,21 @@ export default function Dashboard() {
       <h2 className="fw-bold">{t('Welcome,')} {user?.profile?.full_name || ''}</h2>
       {company && <p className="mb-0 fw-semibold">{company}</p>}
 
+      {/* One-tap everyday tasks: same routes, big touch targets */}
+      <div className="aw-quick-actions" aria-label={t('Quick actions')}>
+        <Link className="btn btn-success" to="/farmers">{t('+ Add Farmer')}</Link>
+        <Link className="btn btn-success" to="/works">{t('+ Add Work')}</Link>
+        <Link className="btn btn-outline-success" to="/payments">{t('Record Payment')}</Link>
+        <Link className="btn btn-outline-success" to="/expenses">{t('+ Add Expense')}</Link>
+      </div>
+
       <div className="row g-2 mb-3">
-        <StatCard icon={<StatIcon name="work" />} label={t('Work Records')} value={totals.works ?? '—'} link="/dashboard/work-records" linkText={t('Work')} />
-        <StatCard icon={<StatIcon name="income" />} label={t('Total Income (billed)')} value={`Rs ${totals.income ?? '—'}`} link="/dashboard/income" linkText={t('Bills')} />
-        <StatCard icon={<StatIcon name="payment" />} label={t('Payments Received')} value={`Rs ${totals.received ?? '—'}`} link="/dashboard/payments" linkText={t('Payments')} />
-        <StatCard icon={<StatIcon name="pending" />} label={t('Pending Payments')} value={`Rs ${totals.pending ?? '—'}`} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
-        <StatCard icon={<StatIcon name="expense" />} label={t('Total Expenses')} value={`Rs ${totals.expenses ?? '—'}`} link="/dashboard/expenses" linkText={t('Expenses')} />
-        <StatCard icon={<StatIcon name="farmers" />} label={t('Farmers')} value={totals.farmers ?? '—'} link="/dashboard/farmers" linkText={t('Farmers')} />
+        <StatCard emoji="🚜" label={t('Work Records')} value={totals.works ?? '—'} desc={t('Total jobs done')} link="/dashboard/work-records" linkText={t('Work')} />
+        <StatCard emoji="💰" label={t('Total Income (billed)')} value={totals.income == null ? '—' : `₹${totals.income}`} desc={t('Billed so far')} link="/dashboard/income" linkText={t('Bills')} />
+        <StatCard emoji="✅" label={t('Payments Received')} value={totals.received == null ? '—' : `₹${totals.received}`} desc={t('Money collected')} link="/dashboard/payments" linkText={t('Payments')} />
+        <StatCard emoji="⏳" label={t('Pending Payments')} value={totals.pending == null ? '—' : `₹${totals.pending}`} desc={t('Still to collect')} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
+        <StatCard emoji="💸" label={t('Total Expenses')} value={totals.expenses == null ? '—' : `₹${totals.expenses}`} desc={t('Money spent')} link="/dashboard/expenses" linkText={t('Expenses')} />
+        <StatCard emoji="👨‍🌾" label={t('Farmers')} value={totals.farmers ?? '—'} desc={t('Farmers in register')} link="/dashboard/farmers" linkText={t('Farmers')} />
       </div>
 
       <div className="row g-3">

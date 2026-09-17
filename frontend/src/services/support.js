@@ -45,11 +45,14 @@ export async function deleteProblemReport(id) {
   await api.delete(`/problem-reports/${id}/`);
 }
 
-// Screenshot paths from the API are backend-relative (/media/...);
-// resolve them against the API host so they open correctly in the browser.
-export function screenshotUrl(path) {
-  if (!path) return '';
-  if (/^https?:\/\//i.test(path)) return path;
-  const base = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace(/\/api\/?$/, '');
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+// P3: screenshots download through the authenticated API (owner or
+// admin only) as a blob, so the file is never exposed on an anonymous
+// guessable URL. Returns an object URL for viewing.
+export async function fetchScreenshotUrl(path) {
+  const filename = String(path || '').split('/').pop();
+  if (!filename) throw new Error('Screenshot not found.');
+  const res = await api.get(`/problem-screenshots/${encodeURIComponent(filename)}`, {
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(res.data);
 }

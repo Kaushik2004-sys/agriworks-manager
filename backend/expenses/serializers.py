@@ -1,6 +1,6 @@
 # Phase 7: Expense serializer with validation.
-from datetime import date
 from decimal import Decimal
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Expense
 
@@ -29,6 +29,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         return value
 
     def validate_date(self, value):
-        if value > date.today():
+        # P8: compare against the Asia/Kolkata local date (see works).
+        if value > timezone.localdate():
             raise serializers.ValidationError('Date cannot be in the future.')
         return value

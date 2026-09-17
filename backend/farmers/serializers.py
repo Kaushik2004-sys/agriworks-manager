@@ -18,8 +18,11 @@ class FarmerSerializer(serializers.ModelSerializer):
 
     def validate_mobile(self, value):
         value = (value or '').strip()
-        # Simple Indian mobile rule: 10 digits, numeric only
-        if not re.fullmatch(r'\d{10}', value):
+        # Same Indian mobile rule as Registration: the UI shows a fixed,
+        # non-editable +91 prefix, so only the 10-digit number starting
+        # with 6/7/8/9 is submitted and stored (no +91 in the database).
+        # No model/schema change: Farmer.mobile still holds 10 digits.
+        if not re.fullmatch(r'[6-9]\d{9}', value):
             raise serializers.ValidationError('Mobile number must be 10 digits.')
         return value
 

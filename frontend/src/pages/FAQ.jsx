@@ -17,9 +17,39 @@ const FAQS = [
     a: 'It is designed for agricultural service providers such as tractor owners, ploughing and harvesting contractors, irrigation service operators, and farm managers who provide paid field services to farmers and need organized records of their work and income.',
   },
   {
+    id: 'mobile-format',
+    q: 'What is the mobile number format?',
+    a: 'Mobile numbers are 10 digits starting with 6, 7, 8, or 9. The +91 country code prefix is shown in the input field but is not stored — only the 10 digits are saved. This applies to signup, profile, and farmer mobile fields.',
+  },
+  {
+    id: 'mobile-login',
+    q: 'Can I log in with my mobile number?',
+    a: 'Yes. On the Login page you can enter your registered mobile number (10 digits) instead of email or username, along with your password. The system will find your account and authenticate you.',
+  },
+  {
+    id: 'single-session',
+    q: 'What happens if I log in on another device?',
+    a: 'AgriWorks Manager allows only one active session per account. Logging in on a new device or browser will automatically invalidate your previous session. You will need to log in again on the old device.',
+  },
+  {
+    id: 'login-history',
+    q: 'Is my login activity recorded?',
+    a: 'Yes. Each successful login creates an audit record with the date, time, IP address, and browser/device information. Administrators can view login history; regular users cannot access other users\' login data.',
+  },
+  {
+    id: 'password-strength',
+    q: 'What are the password requirements?',
+    a: 'Passwords must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character. This applies when creating an account, resetting your password, or changing your password.',
+  },
+  {
     id: 'work-types',
     q: 'What agricultural work can be recorded?',
     a: 'You can record work types such as Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, and Land Leveling. Each work record is linked to one farmer and includes the work date, area covered, and amount charged.',
+  },
+  {
+    id: 'record-locking',
+    q: 'Can I edit saved work, bills, payments, or expenses?',
+    a: 'No. Once saved, work records, bills, payments, and expenses are locked and cannot be edited. This preserves the audit trail. Corrections require creating a new record. Bills and payments also have delete guards: a bill with payments cannot be deleted, and a farmer with work records cannot be deleted.',
   },
   {
     id: 'bills',
@@ -34,7 +64,7 @@ const FAQS = [
   {
     id: 'expenses',
     q: 'How are expenses recorded?',
-    a: 'Go to the Expenses page and add each business expense with its type (Diesel, Maintenance, Driver Wages, or Other), amount, date, and an optional description. Expenses are included in reports and business performance summaries.',
+    a: 'Go to the Expenses page and add each business expense with its type (Diesel, Maintenance, Driver Wages, or Other), amount (whole rupees, minimum Rs 1), date, and an optional description. Expenses are included in reports and business performance summaries.',
   },
   {
     id: 'pending',

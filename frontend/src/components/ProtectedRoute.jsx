@@ -22,7 +22,10 @@ export default function ProtectedRoute({ children }) {
       </div>
     );
   }
-  if (!user || !token) {
+  // Live storage check (not just React state): if the token was removed
+  // after logout, expiry, or rotation, Back/Forward must bounce even before
+  // context state settles. No stale authenticated page can render past this.
+  if (!user || !token || !localStorage.getItem('agriworks_token')) {
     return <Navigate to="/login" replace />;
   }
   // Admin accounts never render the normal User Panel: after a role switch

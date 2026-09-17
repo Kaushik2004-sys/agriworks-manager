@@ -21,7 +21,7 @@ AgriWorks Manager replaces the notebook with structured digital records, automat
 
 ## Main Features
 
-- User registration and login (email or username), logout
+- User registration and login (email, username, or registered 10-digit mobile number), logout
 - Password reset via email link and password change
 - Farmer management (add, view, edit, delete, search)
 - Agricultural work management, linked to one farmer per record
@@ -115,6 +115,9 @@ Confirmed by the current implementation:
 - Pending amount cannot become negative.
 - Overpayment (payment above the pending amount) is rejected.
 - Bill status follows payment state: no payment → Unpaid, partial → Partial, fully paid → Paid.
+- A farmer with work records, a work with a generated bill, and a bill with payments cannot be deleted (HTTP 400); records without such links delete normally.
+- The same farmer, work type and work date cannot be recorded twice.
+- Login, registration and password-reset endpoints are rate-limited per IP; authenticated requests are unaffected.
 - Problem reports are scoped to the reporting user; only superusers can change status or delete reports.
 - Payment date cannot be in the future or before the bill date.
 
@@ -173,7 +176,7 @@ Database configuration (`backend/.env`):
 ```text
 DB_NAME=agriworks_db
 DB_USER=root
-DB_PASSWORD=AgriWorks@123
+DB_PASSWORD=your-mysql-password
 DB_HOST=127.0.0.1
 DB_PORT=3306
 ```
@@ -213,7 +216,7 @@ Major areas under `/api/` (all except registration/login/password-reset require 
 Latest verified results against MySQL:
 
 - Django `manage.py check` → PASS
-- Backend test suite → **28/28 PASS**
+- Backend test suite → **197/197 PASS**
 - Frontend lint → 0 errors
 - Frontend build → successful
 - Migration consistency (`makemigrations --check`, unapplied migrations) → PASS
@@ -227,6 +230,8 @@ Confirmed implementation details (not a hacker-proof claim):
 - Token authentication; passwords are stored hashed using Django's default password hasher and are never returned by the API.
 - Business data is scoped per user at the queryset level; admin endpoints require superuser status.
 - Password-reset links are single-use, expire after 24 hours, and are delivered only to the registered email address (never in API responses).
+- Problem-report screenshots are content-validated images served only to the owning user or an admin (never anonymous guessable URLs).
+- Production requires a real `DJANGO_SECRET_KEY` from the environment (the dev fallback is refused at boot when `DJANGO_DEBUG` is not `True`); HTTPS/HSTS/secure cookies apply automatically outside DEBUG.
 - Keep `SECRET_KEY`, database passwords, Gmail App Passwords and API tokens out of source control (`.env` files are ignored by Git).
 
 ## Project Status

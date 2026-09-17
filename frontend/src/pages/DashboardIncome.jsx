@@ -70,7 +70,7 @@ export default function DashboardIncome() {
             <p className="text-muted small mb-0">{t('No bills.')}</p>
           ) : (
             <div className="table-responsive">
-              <table className="table table-sm table-striped mb-0">
+              <table className="table table-sm table-striped mb-0 aw-cards-table">
                 <thead>
                   <tr>
                     <th>{t('Farmer')}</th>
@@ -84,12 +84,12 @@ export default function DashboardIncome() {
                 <tbody>
                   {bills.map((b) => (
                     <tr key={b.id}>
-                      <td>{b.farmer_name || '—'}</td>
-                      <td>{b.bill_date}</td>
-                      <td>Rs {b.total_amount}</td>
-                      <td>Rs {b.paid_amount}</td>
-                      <td>Rs {b.pending_amount}</td>
-                      <td>{t(b.status)}</td>
+                      <td data-label={t('Farmer')}>{b.farmer_name || '—'}</td>
+                      <td data-label={t('Bill Date')}>{b.bill_date}</td>
+                      <td data-label={t('Total')}>Rs {b.total_amount}</td>
+                      <td data-label={t('Paid')}>Rs {b.paid_amount}</td>
+                      <td data-label={t('Pending')}>Rs {b.pending_amount}</td>
+                      <td data-label={t('Status')}>{t(b.status)}</td>
                     </tr>
                   ))}
                 </tbody>

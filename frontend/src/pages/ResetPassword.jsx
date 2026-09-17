@@ -1,4 +1,4 @@
-// Auth update: Reset Password page.
+// Auth update: Reset Password page (email reset link flow).
 // Reads uid/token from the reset link (?uid=&token=), sets the new password
 // through the Django backend (never frontend-only).
 import { useEffect, useRef, useState } from 'react';
@@ -11,8 +11,11 @@ export default function ResetPassword() {
   const { t } = useLanguage();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const [uid] = useState(params.get('uid') || '');
-  const [token] = useState(params.get('token') || '');
+  // Read uid/token from the live URL on every render (useSearchParams
+  // is reactive), never frozen in useState - if the URL changes from reset
+  // link A to reset link B while mounted, submission uses B's values.
+  const uid = params.get('uid') || '';
+  const token = params.get('token') || '';
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -77,8 +80,9 @@ export default function ResetPassword() {
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
-          <label className="form-label">{t('New Password')}</label>
+          <label className="form-label" htmlFor="reset-new-password">{t('New Password')}</label>
           <input
+            id="reset-new-password"
             type="password"
             className="form-control"
             value={newPassword}
@@ -88,8 +92,9 @@ export default function ResetPassword() {
           <div className="form-text">{t(PASSWORD_HINT)}</div>
         </div>
         <div className="mb-3">
-          <label className="form-label">{t('Confirm New Password')}</label>
+          <label className="form-label" htmlFor="reset-confirm-password">{t('Confirm New Password')}</label>
           <input
+            id="reset-confirm-password"
             type="password"
             className="form-control"
             value={confirmPassword}

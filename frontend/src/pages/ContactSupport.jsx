@@ -10,6 +10,7 @@ import ErrorState from '../components/ErrorState';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PROBLEM_TYPES, createProblemReport, listProblemReports } from '../services/support';
+import { INVALID_EMAIL_MESSAGE, isValidEmail } from '../utils/validateEmail';
 
 const emptyForm = { name: '', email: '', problem_type: '', description: '', screenshot: null };
 
@@ -70,7 +71,9 @@ export default function ContactSupport() {
 
   function validateForm() {
     if (!form.name.trim()) return 'Name is required.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Please enter a valid email address.';
+    // M13: same shared validator as Signup/Forgot Password (strict format
+    // plus typo-domain rejection) - no new rule invented here.
+    if (!isValidEmail(form.email)) return INVALID_EMAIL_MESSAGE;
     if (!PROBLEM_TYPES.includes(form.problem_type)) return 'Select a valid problem type.';
     if (!form.description.trim()) return 'Description must not be empty.';
     return '';
@@ -101,9 +104,18 @@ export default function ContactSupport() {
         name: user?.profile?.full_name || user?.username || '',
         email: user?.email || '',
       });
-    } catch {
-      // Keep entered data intact; no technical details exposed.
-      setError('Save failed. Please try again.');
+    } catch (err) {
+      // P11: show the backend validation message like other forms do;
+      // keep entered data intact.
+      const data = err?.response?.data;
+      let msg = 'Save failed. Please try again.';
+      if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find((v) => typeof v === 'string' && v);
+        if (first) msg = first;
+      } else if (typeof data === 'string' && data) {
+        msg = data;
+      }
+      setError(msg);
     } finally {
       setSaving(false);
     }
@@ -119,6 +131,9 @@ export default function ContactSupport() {
           <h5 className="card-title">{t('Contact Support')}</h5>
           <p className="text-muted small mb-2">
             {t('Questions about the app? Check the guides or send us a problem report below.')}
+          </p>
+          <p className="text-muted small mb-2">
+            {t('Problem reports collect your name, email, problem type, description, and optional screenshot image. Screenshots are stored as uploaded files.')}
           </p>
           <div className="d-flex gap-2 flex-wrap">
             <Link to="/help-support" className="btn btn-outline-success btn-sm">{t('Help & Support')}</Link>
@@ -228,7 +243,7 @@ export default function ContactSupport() {
             <EmptyState message="No problem reports found." />
           ) : (
             <div className="table-responsive">
-              <table className="table table-striped table-bordered">
+              <table className="table table-striped table-bordered aw-cards-table">
                 <thead className="table-success">
                   <tr>
                     <th>{t('Date')}</th>
@@ -240,10 +255,10 @@ export default function ContactSupport() {
                 <tbody>
                   {reports.map((r) => (
                     <tr key={r.id}>
-                      <td className="text-nowrap">{String(r.created_at || '').slice(0, 10)}</td>
-                      <td>{t(r.problem_type)}</td>
-                      <td style={{ minWidth: 180 }}>{r.description}</td>
-                      <td><span className={statusBadge(r.status)}>{t(r.status)}</span></td>
+                      <td data-label={t('Date')} className="text-nowrap">{String(r.created_at || '').slice(0, 10)}</td>
+                      <td data-label={t('Problem Type')}>{t(r.problem_type)}</td>
+                      <td data-label={t('Description')}>{r.description}</td>
+                      <td data-label={t('Status')}><span className={statusBadge(r.status)}>{t(r.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>

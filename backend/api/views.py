@@ -7,10 +7,10 @@ from django.contrib.auth import authenticate
 from django.db import connection
 from django.db.models import Count, Sum
 from rest_framework import status
-from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
+from .throttles import LoginRateThrottle
 
 
 class IsSuperUser(BasePermission):
@@ -19,6 +19,25 @@ class IsSuperUser(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated
                     and request.user.is_superuser)
+
+
+def _client_ip(request):
+    """Best-effort client IP for the login audit record.
+
+    REMOTE_ADDR only (set by the server/WSGI layer); X-Forwarded-For and
+    friends are ignored because the project has no proxy configuration.
+    Returns None when missing or malformed so logging never breaks login.
+    """
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_ipv46_address
+    raw = (request.META.get('REMOTE_ADDR') or '').strip()
+    if not raw:
+        return None
+    try:
+        validate_ipv46_address(raw)
+    except ValidationError:
+        return None
+    return raw
 
 
 @api_view(['GET'])
@@ -44,6 +63,7 @@ def health_check(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     """Validate credentials and return auth token.
 
@@ -65,23 +85,30 @@ def login_view(request):
 
     username = identifier
     if '@' in identifier:
-        # Email login: resolve to the account username first.
+        # Email login: resolve to the account username first. M6: email
+        # is not DB-unique, so duplicate/case-variant records raise
+        # MultipleObjectsReturned - never 500 and never pick a user
+        # arbitrarily; any non-unique lookup gets the generic error.
         try:
             from django.contrib.auth.models import User
             username = User.objects.get(
                 email__iexact=identifier.lower()).username
-        except User.DoesNotExist:
+        except (User.DoesNotExist, User.MultipleObjectsReturned):
             return Response(
                 {'error': 'Invalid email or password.'},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_401_UNAUTHORIZED,
             )
     else:
         # Username or Registered Mobile Number login. An existing username
         # always wins so numeric usernames keep working as before.
         from django.contrib.auth.models import User
         if not User.objects.filter(username=identifier).exists():
-            # Mobile fallback: exactly 10 digits matching one profile.
-            if identifier.isdigit() and len(identifier) == 10:
+            # Mobile fallback: M1 same rule as registration/profile -
+            # exactly 10 digits starting with 6/7/8/9. Any other format
+            # is never treated as a mobile identifier and simply fails
+            # authentication with the generic error below.
+            if (identifier.isdigit() and len(identifier) == 10
+                    and identifier[0] in '6789'):
                 from accounts.models import UserProfile
                 matches = UserProfile.objects.filter(
                     mobile=identifier).select_related('user')
@@ -92,25 +119,34 @@ def login_view(request):
                     # never pick a user arbitrarily.
                     return Response(
                         {'error': 'Invalid email or password.'},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        status=status.HTTP_401_UNAUTHORIZED,
                     )
 
     user = authenticate(username=username, password=password)
     if user is None:
         return Response(
             {'error': 'Invalid email or password.'},
-            status=status.HTTP_400_BAD_REQUEST,
+            status=status.HTTP_401_UNAUTHORIZED,
         )
 
     # Single active session per user: invalidate any previous token so that
     # only this login stays valid (same rotate pattern as password change).
     # The authtoken table already holds at most one row per user, so no
-    # model/migration change is needed.
-    Token.objects.filter(user=user).delete()
-    token = Token.objects.create(user=user)
-    # Permanent login record (one NEW row per successful login; never updated).
+    # model/migration change is needed. M8: rotated atomically (row-locked)
+    # so concurrent logins serialize instead of colliding with HTTP 500.
+    from .token_rotation import rotate_auth_token
+    token = rotate_auth_token(user)
+    # Immutable audit record (one NEW row per successful login; never
+    # updated). M9: client IP from REMOTE_ADDR only (forwarded headers are
+    # never trusted - no proxy setup) plus a bounded User-Agent. Both are
+    # sanitized so audit logging can never break login or store secrets.
     from accounts.models import LoginHistory
-    LoginHistory.objects.create(user=user, status='Successful')
+    LoginHistory.objects.create(
+        user=user,
+        status='Successful',
+        ip_address=_client_ip(request),
+        user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:255],
+    )
     return Response({
         'token': token.key,
         'username': user.username,
@@ -194,8 +230,8 @@ def dashboard_view(request):
             'income': str(total_income),
             'received': str(total_received),
             # Zero pending must read "0" on every database: MySQL SUM(decimal)
-            # yields Decimal('0.00') while SQLite yields 0. Non-zero values
-            # keep their exact decimal representation.
+            # yields Decimal('0.00'). Non-zero values keep their exact
+            # decimal representation.
             'pending': '0' if pending == 0 else str(pending),
             'expenses': str(total_expenses),
         },
@@ -294,12 +330,27 @@ def admin_overview_view(request):
 def admin_login_history_view(request):
     """Login History for the Admin Dashboard (superuser only, newest first).
 
-    Exposes usernames/emails/timestamps only — never passwords or tokens.
+    Exposes usernames/emails/timestamps plus the audit IP and User-Agent
+    - never passwords, hashes, or tokens of any kind. P5: optional
+    ?page=&page_size= pagination (defaults preserve the full list).
     """
     from django.utils import timezone
     from accounts.models import LoginHistory
 
     records = LoginHistory.objects.select_related('user').order_by('-created_at', '-id')
+    total = records.count()
+    try:
+        page = max(int(request.query_params.get('page') or 1), 1)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = int(request.query_params.get('page_size') or 0)
+    except (TypeError, ValueError):
+        page_size = 0
+    paginated = bool(request.query_params.get('page') or request.query_params.get('page_size'))
+    if paginated:
+        page_size = min(max(page_size or 50, 1), 500)
+        records = records[(page - 1) * page_size:page * page_size]
     items = []
     for h in records:
         logged_at = timezone.localtime(h.created_at) if h.created_at else None
@@ -311,7 +362,12 @@ def admin_login_history_view(request):
             'login_date': logged_at.strftime('%d %b %Y') if logged_at else '',
             'login_time': logged_at.strftime('%I:%M %p') if logged_at else '',
             'status': h.status,
+            'ip_address': h.ip_address or '',
+            'user_agent': h.user_agent or '',
         })
+    if paginated:
+        return Response({'count': total, 'page': page,
+                         'page_size': page_size, 'results': items})
     return Response(items)
 
 
@@ -340,7 +396,16 @@ def reports_view(request):
 
     user = request.user
     rtype = (request.query_params.get('type') or 'work').strip()
+    # P9: unknown report types must not silently serve the wrong report.
+    if rtype not in ('work', 'billing', 'payment', 'pending', 'expense',
+                     'performance'):
+        return Response({'error': 'Invalid report type.'},
+                        status=status.HTTP_400_BAD_REQUEST)
     farmer_id = (request.query_params.get('farmer') or '').strip()
+    # P9: malformed farmer id fails loudly instead of listing everything.
+    if farmer_id and not farmer_id.isdigit():
+        return Response({'error': 'Invalid farmer filter.'},
+                        status=status.HTTP_400_BAD_REQUEST)
     status_f = (request.query_params.get('status') or '').strip()
     work_type = (request.query_params.get('work_type') or '').strip()
     expense_type = (request.query_params.get('expense_type') or '').strip()
@@ -408,15 +473,19 @@ def reports_view(request):
                 | Q(work__work_type__icontains=search)
             )
         qs = qs.order_by('-bill_date', '-id')
-        bills = list(qs)
+        # P5: one aggregate query for all paid sums instead of one per
+        # bill (N+1). Same numbers, same response shape.
+        bills = list(qs.annotate(paid_sum=Sum('payments__amount')))
         total = sum((b.total_amount for b in bills), Decimal('0'))
-        paid = sum((b.get_paid_amount() for b in bills), Decimal('0'))
+        paid = sum((b.paid_sum or Decimal('0') for b in bills),
+                   Decimal('0'))
         return Response({
             'type': 'billing',
             'records': [
                 {'id': b.id, 'farmer': b.farmer.name, 'work': b.work.work_type,
                  'bill_date': str(b.bill_date), 'total': str(b.total_amount),
-                 'paid': str(b.get_paid_amount()), 'pending': str(b.get_pending_amount()),
+                 'paid': str(b.paid_sum or Decimal('0')),
+                 'pending': str(b.total_amount - (b.paid_sum or Decimal('0'))),
                  'status': b.status}
                 for b in bills
             ],
@@ -462,17 +531,22 @@ def reports_view(request):
                 Q(farmer__name__icontains=search)
                 | Q(farmer__mobile__icontains=search)
             )
-        pending_bills = [b for b in qs if b.get_pending_amount() > 0]
+        # P5: same single-query annotation as the billing branch.
+        bills = list(qs.annotate(paid_sum=Sum('payments__amount')))
+        for b in bills:
+            b.pending_amt = b.total_amount - (b.paid_sum or Decimal('0'))
+        pending_bills = [b for b in bills if b.pending_amt > 0]
         pending_bills.sort(key=lambda b: (str(b.bill_date), b.id), reverse=True)
-        total_pending = sum((b.get_pending_amount() for b in pending_bills), Decimal('0'))
+        total_pending = sum((b.pending_amt for b in pending_bills), Decimal('0'))
         return Response({
             'type': 'pending',
             'records': [
                 {'id': b.id, 'farmer': b.farmer.name, 'mobile': b.farmer.mobile,
                  'village': b.farmer.village, 'bill_date': str(b.bill_date),
                  'work_type': b.work.work_type,
-                 'total': str(b.total_amount), 'paid': str(b.get_paid_amount()),
-                 'pending': str(b.get_pending_amount()), 'status': b.status}
+                 'total': str(b.total_amount),
+                 'paid': str(b.paid_sum or Decimal('0')),
+                 'pending': str(b.pending_amt), 'status': b.status}
                 for b in pending_bills
             ],
             'summary': {'count': len(pending_bills), 'total_pending': str(total_pending)},

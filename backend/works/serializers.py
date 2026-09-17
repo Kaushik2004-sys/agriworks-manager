@@ -1,6 +1,6 @@
 # Phase 4: Work serializer with validation.
-from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from django.utils import timezone
 from rest_framework import serializers
 from farmers.models import Farmer
 from .models import Work
@@ -78,7 +78,9 @@ class WorkSerializer(serializers.ModelSerializer):
         return value
 
     def validate_work_date(self, value):
-        if value > date.today():
+        # P8: project TIME_ZONE is Asia/Kolkata - compare against the local
+        # date so "today" stays valid around midnight server time.
+        if value > timezone.localdate():
             raise serializers.ValidationError('Work date cannot be in the future.')
         return value
 
@@ -111,7 +113,16 @@ class WorkSerializer(serializers.ModelSerializer):
         return validate_whole_rate_per_hour(value)
 
     def validate_amount(self, value):
-        if value is None or Decimal(value) < 0:
+        # Every work record must carry a positive amount: all server-side
+        # totals (area x rate, irrigation duration x rate, manual Other
+        # total) are positive, and billing requires totals above zero.
+        # Defensive coercion: malformed input is a 400, never a 500
+        # (DRF DecimalField normally rejects it first).
+        try:
+            dec = Decimal(value)
+        except Exception:
+            raise serializers.ValidationError('Amount cannot be negative.')
+        if value is None or dec <= 0:
             raise serializers.ValidationError('Amount cannot be negative.')
         return value
 
@@ -164,6 +175,13 @@ class WorkSerializer(serializers.ModelSerializer):
                     errors['hourly_rate'] = exc.detail[0] if hasattr(exc.detail, '__getitem__') else exc.detail
             if errors:
                 raise serializers.ValidationError(errors)
+            # Zero duration would compute a Rs 0 total, which can never be
+            # billed - reject it. Hour/minute range checks above are
+            # unchanged, so 0h 30m and 1h 0m stay allowed.
+            if hours == 0 and minutes == 0:
+                raise serializers.ValidationError({
+                    'irrigation_minutes':
+                        'Irrigation duration must be greater than zero.'})
             total = (Decimal(hours) + Decimal(minutes) / Decimal(60)) * Decimal(rate)
             attrs['amount'] = total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             attrs['rate_per_acre'] = None
@@ -267,16 +285,18 @@ class WorkSerializer(serializers.ModelSerializer):
             attrs['irrigation_minutes'] = None
             attrs['hourly_rate'] = None
         # Duplicate prevention (create only): the same user cannot save the
-        # same work type twice on the same work date. Runs after all existing
-        # validations so their errors stay unchanged. Updates stay locked
-        # (405), so no exclude-self handling is needed. Application-level
-        # check only — no schema change. Compares real date values.
+        # same work type twice for the same farmer on the same work date.
+        # Same type/date for a different farmer stays allowed. Runs after
+        # all existing validations so their errors stay unchanged. Updates
+        # stay locked (405), so no exclude-self handling is needed.
+        # Application-level check only — no schema change.
+        # Compares real date values.
         if self.instance is None and request is not None:
             dup_type = attrs.get('work_type')
             dup_date = attrs.get('work_date')
-            if dup_type and dup_date and Work.objects.filter(
-                    user=request.user, work_type=dup_type,
-                    work_date=dup_date).exists():
+            if (dup_type and dup_date and farmer and Work.objects.filter(
+                    user=request.user, farmer=farmer, work_type=dup_type,
+                    work_date=dup_date).exists()):
                 raise serializers.ValidationError({
                     'work_date': 'A work entry for this work type already exists on this date.'})
         return attrs

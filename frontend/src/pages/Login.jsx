@@ -42,24 +42,44 @@ export default function Login() {
       sessionStorage.setItem('aw_post_login', '1');
       navigate(isAdmin ? '/admin/dashboard' : '/', { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.error || 'Login failed. Check backend connection.';
-      setError(msg);
+      // M12: extract the real backend message from any DRF shape
+      // ({error}, {detail} e.g. throttled 429s, {field: [...]},
+      // {non_field_errors: [...]}, array, plain string). Generic
+      // fallback only when nothing usable is present.
+      const data = err.response?.data;
+      let msg = '';
+      if (typeof data === 'string') msg = data;
+      else if (typeof data?.error === 'string') msg = data.error;
+      else if (typeof data?.detail === 'string') msg = data.detail;
+      else if (Array.isArray(data) && data.length) msg = data[0];
+      else if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find(Boolean);
+        msg = Array.isArray(first) ? first[0] : first;
+      }
+      setError(msg ? String(msg) : 'Login failed. Check backend connection.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="container py-4" style={{ maxWidth: 420 }}>
-      <h2 className="fw-bold mb-1">{t('Login')}</h2>
-      <p className="text-muted">{t('Secure access to AgriWorks Manager')}</p>
+    <div className="container py-4 aw-auth-wrap">
+      <div className="aw-brand-row">
+        <img src="/logo.png" alt="AgriWorks logo" />
+        <div>
+          <h2 className="fw-bold mb-0">{t('Login')}</h2>
+          <p className="text-muted mb-0">{t('Your digital register for farm work')}</p>
+        </div>
+      </div>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      <div className="aw-auth-card">
+      {error && <div className="alert alert-danger" role="alert">{t(error)}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
-          <label className="form-label">{t('Username or Registered Mobile Number')}</label>
+          <label className="form-label" htmlFor="login-id">{t('Username or Registered Mobile Number')}</label>
           <input
+            id="login-id"
             className="form-control"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
@@ -68,9 +88,10 @@ export default function Login() {
           />
         </div>
         <div className="mb-3">
-          <label className="form-label">{t('Password')}</label>
+          <label className="form-label" htmlFor="login-password">{t('Password')}</label>
           <div className="input-group">
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               className="form-control"
               value={password}
@@ -98,6 +119,7 @@ export default function Login() {
         {/* Auth-to-auth moves replace so at most one auth page ever sits in history. */}
         <Link to="/signup" replace>{t('Create New Account')}</Link>
         <Link to="/forgot-password" replace>{t('Forgot Password?')}</Link>
+      </div>
       </div>
     </div>
   );

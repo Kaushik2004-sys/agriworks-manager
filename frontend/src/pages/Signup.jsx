@@ -40,7 +40,7 @@ export default function Signup() {
     if (!isValidEmail(form.email)) {
       return INVALID_EMAIL_MESSAGE;
     }
-    if (!/^\d{10}$/.test(form.mobile.trim())) {
+    if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) {
       return 'Mobile Number must be 10 digits.';
     }
     if (!form.password) return 'Password is required.';
@@ -89,11 +89,12 @@ export default function Signup() {
   }
 
   return (
-    <div className="container py-4" style={{ maxWidth: 520 }}>
+    <div className="container py-4 aw-auth-wrap" style={{ maxWidth: 560 }}>
       <h2 className="fw-bold mb-1">{t('Create Account')}</h2>
-      <p className="text-muted">{t('Join AgriWorks Manager')}</p>
+      <p className="text-muted">{t('Join AgriWorks — your digital register')}</p>
 
-      {error && <div className="alert alert-danger">{t(error)}</div>}
+      <div className="aw-auth-card">
+      {error && <div className="alert alert-danger" role="alert">{t(error)}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="row g-2">
@@ -139,14 +140,20 @@ export default function Signup() {
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Mobile Number *')}</label>
-            <input
-              className="form-control"
-              value={form.mobile}
-              onChange={(e) => set('mobile', e.target.value)}
-              maxLength={10}
-              inputMode="numeric"
-              autoComplete="tel"
-            />
+            <div className="input-group">
+              <span className="input-group-text" aria-hidden="true">+91</span>
+<input
+                  className="form-control"
+                  value={form.mobile}
+                  onChange={(e) => set('mobile', e.target.value)}
+                  maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="0000000000"
+                  pattern="[6-9][0-9]{9}"
+                  aria-label={t('Mobile Number *')}
+                />
+            </div>
           </div>
         </div>
         <div className="row g-2">
@@ -180,6 +187,7 @@ export default function Signup() {
       <p className="text-center mt-3 mb-0">
         {t('Already have an account? ')}<Link to="/login" replace>{t('Login')}</Link>
       </p>
+      </div>
     </div>
   );
 }

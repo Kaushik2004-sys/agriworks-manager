@@ -2,8 +2,11 @@
 // Every work record is linked to a farmer (Farmer -> Work).
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
+import WorkTypeIcon, { workTypeIconName } from '../components/WorkTypeIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { WORK_TYPES, createWork, deleteWork, listWorks } from '../services/works';
@@ -95,6 +98,8 @@ export default function Works() {
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load(searchText = search, farmerId = filterFarmer, workType = filterType) {
     setLoading(true);
@@ -243,13 +248,32 @@ export default function Works() {
     }
   }
 
+  // Same delete logic; friendlier accessible dialog instead of window.confirm.
   async function handleDelete(id) {
-    if (!window.confirm(t('Delete this work record?'))) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId == null) return;
+    setDeleting(true);
     try {
-      await deleteWork(id);
+      await deleteWork(pendingDeleteId);
+      setPendingDeleteId(null);
       load(search.trim(), filterFarmer, filterType);
-    } catch {
-      setError('Delete failed. Please try again.');
+    } catch (err) {
+      // Surface the backend delete-guard message (e.g. billed work cannot
+      // be deleted); fall back to the generic message.
+      const data = err.response?.data;
+      let msg = '';
+      if (Array.isArray(data) && data.length) msg = data[0];
+      else if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find(Boolean);
+        msg = Array.isArray(first) ? first[0] : first;
+      } else if (typeof data === 'string') msg = data;
+      setError(msg ? String(msg) : 'Delete failed. Please try again.');
+      setPendingDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -278,19 +302,29 @@ export default function Works() {
     <div className="container py-4">
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/farmers" nextTo="/bills" />
-      <h2 className="fw-bold">{t('Agricultural Work')}</h2>
+      <PageHeader
+        title="Agricultural Work"
+        subtitle="Record farm work for a farmer — it becomes the bill later."
+        actionLabel="+ Add Work"
+        actionIcon="🚜"
+        onAction={startAdd}
+      />
 
-      <form className="row g-2 mb-3" onSubmit={handleSearch}>
+      <form className="row g-2 mb-3" onSubmit={handleSearch} role="search">
         <div className="col-12 col-md-4">
+          <label className="visually-hidden" htmlFor="work-search">{t('Search work')}</label>
           <input
+            id="work-search"
             className="form-control"
-            placeholder={t('Search work type, farmer...')}
+            type="search"
+            placeholder={t('Search work — farmer, work type...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <div className="col-6 col-md-3">
-          <select className="form-select" value={filterFarmer} onChange={(e) => setFilterFarmer(e.target.value)}>
+          <label className="visually-hidden" htmlFor="work-filter-farmer">{t('Select Farmer')}</label>
+          <select id="work-filter-farmer" className="form-select" value={filterFarmer} onChange={(e) => setFilterFarmer(e.target.value)}>
             <option value="">{t('All farmers')}</option>
             {farmers.map((f) => (
               <option key={f.id} value={f.id}>{f.name} ({f.village})</option>
@@ -298,7 +332,8 @@ export default function Works() {
           </select>
         </div>
         <div className="col-6 col-md-3">
-          <select className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+          <label className="visually-hidden" htmlFor="work-filter-type">{t('Select Work Type')}</label>
+          <select id="work-filter-type" className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">{t('All work types')}</option>
             {WORK_TYPES.map((wt) => (
               <option key={wt} value={wt}>{t(wt)}</option>
@@ -306,8 +341,7 @@ export default function Works() {
           </select>
         </div>
         <div className="col-12 col-md-2 d-flex gap-2 flex-wrap">
-          <button className="btn btn-outline-success" type="submit">{t('Filter')}</button>
-          <button className="btn btn-success" type="button" onClick={startAdd}>{t('Add Work')}</button>
+          <button className="btn btn-outline-success" type="submit">{t('🔍 Filter')}</button>
         </div>
       </form>
 
@@ -319,15 +353,17 @@ export default function Works() {
       )}
 
       {showForm && (
-        <div className="card mb-3">
+        <div className="card mb-3 aw-form-block">
           <div className="card-body">
-            <h5 className="card-title">{t('Add Work')}</h5>
-            {formError && <div className="alert alert-danger">{t(formError)}</div>}
+            <h5 className="card-title">{t('🚜 Add Work')}</h5>
+            {formError && <div className="alert alert-danger" role="alert">{t(formError)}</div>}
             <form onSubmit={handleSave}>
+              <h6 className="aw-section-title">{t('1. Farmer')}</h6>
               <div className="row g-2">
-                <div className="col-12 col-md-6">
-                  <label className="form-label">{t('Farmer *')}</label>
+                <div className="col-12">
+                  <label className="form-label" htmlFor="work-farmer">{t('Farmer *')}</label>
                   <select
+                    id="work-farmer"
                     className="form-select"
                     value={form.farmer}
                     onChange={(e) => setForm({ ...form, farmer: e.target.value })}
@@ -338,9 +374,32 @@ export default function Works() {
                     ))}
                   </select>
                 </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label">{t('Work type *')}</label>
+              </div>
+              <h6 className="aw-section-title">{t('2. Work Type')}</h6>
+              {/* Visual chips write to the same work_type state; the select
+                  below stays as the accessible source of truth. */}
+              <div className="aw-chip-row mb-2" role="group" aria-label={t('Work type')}>
+                {WORK_TYPES.map((wt) => (
+                  <button
+                    key={wt}
+                    type="button"
+                    className="aw-chip"
+                    aria-pressed={form.work_type === wt}
+                    onClick={() => setForm({
+                      ...form,
+                      work_type: wt,
+                      work_description: wt === 'Other' ? form.work_description : '',
+                    })}
+                  >
+                    <span aria-hidden="true">{workTypeIconName(wt)}</span> {t(wt)}
+                  </button>
+                ))}
+              </div>
+              <div className="row g-2">
+                <div className="col-12">
+                  <label className="form-label" htmlFor="work-type">{t('Work type *')}</label>
                   <select
+                    id="work-type"
                     className="form-select"
                     value={form.work_type}
                     onChange={(e) => setForm({
@@ -355,108 +414,139 @@ export default function Works() {
                     ))}
                   </select>
                 </div>
-                <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Work date *')}</label>
+              </div>
+              <h6 className="aw-section-title">{t('3. Date & Place')}</h6>
+              <div className="row g-2">
+                <div className="col-12 col-md-6">
+                  <label className="form-label" htmlFor="work-date">{t('Work date *')}</label>
                   <input
+                    id="work-date"
                     type="date"
                     className="form-control"
                     value={form.work_date}
                     onChange={(e) => setForm({ ...form, work_date: e.target.value })}
                   />
                 </div>
-                <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Field / Location')} *</label>
+                <div className="col-12 col-md-6">
+                  <label className="form-label" htmlFor="work-location">{t('Field / Location *')}</label>
                   <input
+                    id="work-location"
                     className="form-control"
                     value={form.field_location}
                     onChange={(e) => setForm({ ...form, field_location: e.target.value })}
+                    placeholder={t('e.g. North field, Gat No. 12')}
                   />
                 </div>
-                <div className="col-12 col-md-4">
-                  <label className="form-label">{t('Remark')}</label>
+                <div className="col-12">
+                  <label className="form-label" htmlFor="work-remark">{t('Note (optional)')}</label>
                   <textarea
+                    id="work-remark"
                     className="form-control"
                     rows={2}
                     value={form.remark}
                     onChange={(e) => setForm({ ...form, remark: e.target.value })}
+                    placeholder={t('Any extra detail (optional)')}
                   />
                 </div>
+              </div>
+              <h6 className="aw-section-title">{t('4. Work Details')}</h6>
+                <div className="row g-2">
                 {isOther && (
                   <div className="col-12">
-                    <label className="form-label">{t('Work Description')} *</label>
+                    <label className="form-label" htmlFor="work-desc">{t('Work Description *')}</label>
                     <textarea
+                      id="work-desc"
                       className="form-control"
                       rows={2}
                       value={form.work_description}
                       onChange={(e) => setForm({ ...form, work_description: e.target.value })}
+                      placeholder={t('Describe the work done')}
                     />
                   </div>
                 )}
                 <div className="col-6 col-md-4">
-                  <label className="form-label">{(isIrrigation || isOther) ? t('Area (acres)') : t('Area (acres) *')}</label>
+                  <label className="form-label" htmlFor="work-area">{(isIrrigation || isOther) ? t('Area (acres)') : t('Area (acres) *')}</label>
                   <input
+                    id="work-area"
                     type="number" step="0.01" min="0"
                     className="form-control"
                     value={form.area}
                     onChange={(e) => setForm({ ...form, area: e.target.value })}
-                  />
-                </div>
-                <div className="col-6 col-md-4">
-                  <label className="form-label">{isCalculated ? t('Total Amount') : isOther ? `${t('Total Amount')} (Rs) *` : t('Amount (Rs) *')}</label>
-                  <input
-                    type="number" step={isOther ? '1' : '0.01'} min={isOther ? '1' : '0'}
-                    className="form-control"
-                    value={isCalculated ? calculatedTotal : form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    readOnly={isCalculated}
+                    placeholder="0.0"
                   />
                 </div>
                 {(isLandLeveling || isAreaRate || isOther) && (
                   <div className="col-6 col-md-4">
-                    <label className="form-label">{t('Rate per Acre')} (Rs){isOther ? '' : ' *'}</label>
+                    <label className="form-label" htmlFor="work-rate-acre">{t('Rate per Acre (₹)')}{isOther ? '' : ' *'}</label>
                     <input
+                      id="work-rate-acre"
                       type="number" step="1" min="1"
                       className="form-control"
                       value={form.rate_per_acre}
                       onChange={(e) => setForm({ ...form, rate_per_acre: e.target.value })}
+                      placeholder="₹"
                     />
                   </div>
                 )}
                 {isIrrigation && (
                   <>
                     <div className="col-12">
-                      <h6 className="fw-semibold mb-0 mt-1">{t('Irrigation Duration')}</h6>
+                      <h6 className="fw-semibold mb-0 mt-1">{t('💧 Irrigation Time')}</h6>
                     </div>
                     <div className="col-6 col-md-4">
-                      <label className="form-label">{t('Hours')} *</label>
+                      <label className="form-label" htmlFor="work-hours">{t('Hours *')}</label>
                       <input
+                        id="work-hours"
                         type="number" step="1" min="0"
                         className="form-control"
                         value={form.irrigation_hours}
                         onChange={(e) => setForm({ ...form, irrigation_hours: e.target.value })}
+                        placeholder="0"
                       />
                     </div>
                     <div className="col-6 col-md-4">
-                      <label className="form-label">{t('Minutes')} *</label>
+                      <label className="form-label" htmlFor="work-minutes">{t('Minutes *')}</label>
                       <input
+                        id="work-minutes"
                         type="number" step="1" min="0" max="59"
                         className="form-control"
                         value={form.irrigation_minutes}
                         onChange={(e) => setForm({ ...form, irrigation_minutes: e.target.value })}
+                        placeholder="0–59"
                       />
                     </div>
                     <div className="col-12 col-md-4">
-                      <label className="form-label">{t('Rate per Hour')} (Rs) *</label>
+                      <label className="form-label" htmlFor="work-rate-hour">{t('Rate per Hour (₹) *')}</label>
                       <input
+                        id="work-rate-hour"
                         type="number" step="1" min="1"
                         className="form-control"
                         value={form.hourly_rate}
                         onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })}
+                        placeholder="₹"
                       />
                     </div>
                   </>
                 )}
-              </div>
+                </div>
+                <h6 className="aw-section-title">{t('5. Amount')}</h6>
+                <div className="row g-2">
+                <div className="col-12">
+                  <label className="form-label" htmlFor="work-amount">{isCalculated ? t('Total Amount (auto)') : isOther ? t('Total Amount (₹) *') : t('Amount (₹) *')}</label>
+                  <input
+                    id="work-amount"
+                    type="number" step={isOther ? '1' : '0.01'} min={isOther ? '1' : '0'}
+                    className="form-control aw-money-big"
+                    value={isCalculated ? calculatedTotal : form.amount}
+                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    readOnly={isCalculated}
+                    placeholder="₹"
+                  />
+                  {isCalculated && calculatedTotal !== '' && (
+                    <div className="form-text">{t('Calculated automatically: ')}<strong className="aw-money">₹{calculatedTotal}</strong></div>
+                  )}
+                </div>
+                </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
                 <button className="btn btn-success" type="submit" disabled={saving}>
                   {saving ? t('Saving...') : t('Save')}
@@ -471,12 +561,18 @@ export default function Works() {
       )}
 
       {loading ? (
-        <p className="text-muted">{t('Loading work records...')}</p>
+        <p className="text-muted" role="status">{t('Loading work records...')}</p>
       ) : works.length === 0 ? (
-        <EmptyState message="No work records found." />
+        <EmptyState
+          icon="🚜"
+          title="No work records found."
+          message="Record your first work — it becomes the bill later."
+          actionLabel="+ Add Work"
+          onAction={startAdd}
+        />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('Farmer')}</th>
@@ -490,20 +586,30 @@ export default function Works() {
             <tbody>
               {works.map((w) => (
                 <tr key={w.id}>
-                  <td>{w.farmer_name || farmerName(w.farmer)}</td>
-                  <td>{t(w.work_type)}</td>
-                  <td>{w.work_date}</td>
-                  <td>{w.area}</td>
-                  <td>Rs {displayRupees(w.amount)}</td>
-                  <td className="text-nowrap">
+                  <td data-label={t('Farmer')}><strong>{w.farmer_name || farmerName(w.farmer)}</strong></td>
+                  <td data-label={t('Work Type')}><WorkTypeIcon type={w.work_type} />{t(w.work_type)}</td>
+                  <td data-label={t('Date')}>{w.work_date}</td>
+                  <td data-label={t('Area')}>{w.area || '—'}</td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{displayRupees(w.amount)}</span></td>
+                  <td data-label={t('Actions')} className="text-nowrap">
                     <span className="badge bg-secondary me-2" title={t('Saved work records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(w.id)}>{t('Delete')}</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(w.id)}>{t('🗑️ Delete')}</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {pendingDeleteId != null && (
+        <ConfirmDialog
+          title="Delete this work record?"
+          message="This will remove this work from your records. Billed work may be protected."
+          confirmLabel="Delete"
+          busy={deleting}
+          onCancel={() => { if (!deleting) setPendingDeleteId(null); }}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );

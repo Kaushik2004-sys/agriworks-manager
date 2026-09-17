@@ -17,10 +17,8 @@ export async function createWork(data) {
   return res.data;
 }
 
-export async function updateWork(id, data) {
-  const res = await api.put(`/works/${id}/`, data);
-  return res.data;
-}
+// NOTE: work records are immutable once saved (backend rejects PUT/PATCH
+// with 405). Corrections use a new record, so no update helper exists.
 
 export async function deleteWork(id) {
   await api.delete(`/works/${id}/`);

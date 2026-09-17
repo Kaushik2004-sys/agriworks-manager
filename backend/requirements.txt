@@ -1,7 +1,10 @@
-Django>=5.0
-djangorestframework>=3.15
-django-cors-headers>=4.3
-mysqlclient>=2.2
-python-dotenv>=1.0
-gunicorn>=22.0
-whitenoise>=6.0
+# M16.8: pinned to the currently installed, fully tested working versions
+# (166/166 backend tests pass with exactly these). Pinning keeps hosting
+# builds reproducible instead of drifting with future releases.
+Django==6.1.1
+djangorestframework==3.18.1
+django-cors-headers==4.9.0
+mysqlclient==2.2.8
+python-dotenv==1.2.3
+gunicorn==26.2.0
+whitenoise==6.12.0

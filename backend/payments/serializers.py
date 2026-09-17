@@ -1,8 +1,8 @@
 # Phase 6: Payment serializer with remaining-amount rule.
 # Rule: payment must not exceed remaining bill amount.
-from datetime import date
 from decimal import Decimal
 from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import serializers
 from billing.models import Bill
 from .models import Payment
@@ -36,7 +36,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         return value
 
     def validate_payment_date(self, value):
-        if value > date.today():
+        # P8: compare against the Asia/Kolkata local date (see works).
+        if value > timezone.localdate():
             raise serializers.ValidationError('Payment date cannot be in the future.')
         return value
 

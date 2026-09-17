@@ -1,6 +1,6 @@
-// Auth update: Forgot Password page.
-// The reset link is emailed by the Django backend and is NEVER shown here —
-// only a confirmation message is displayed.
+// Auth update: Forgot Password page (email reset link flow).
+// The user enters their registered email address; the backend emails a
+// single-use reset link. Only a confirmation message is displayed here.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { requestPasswordReset } from '../services/api';
@@ -29,7 +29,7 @@ export default function ForgotPassword() {
     setBusy(true);
     try {
       const data = await requestPasswordReset(email.trim());
-      setMessage(data.message || 'Password reset link has been sent to your registered email address.');
+      setMessage(data.message || 'If an account exists with this email address, a password reset link has been sent.');
     } catch (err) {
       setError(err.response?.data?.error || 'Request failed. Check backend connection.');
     } finally {
@@ -40,20 +40,22 @@ export default function ForgotPassword() {
   return (
     <div className="container py-4" style={{ maxWidth: 420 }}>
       <h2 className="fw-bold mb-1">{t('Forgot Password')}</h2>
-      <p className="text-muted">{t('Enter your account email to receive a reset link.')}</p>
+      <p className="text-muted">{t('Enter your registered email address. We will send you a password reset link.')}</p>
 
       {error && <div className="alert alert-danger">{t(error)}</div>}
       {message && <div className="alert alert-success">{t(message)}</div>}
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
-          <label className="form-label">{t('Email')}</label>
+          <label className="form-label" htmlFor="forgot-email">{t('Email Address')}</label>
           <input
+            id="forgot-email"
             type="email"
             className="form-control"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            placeholder="you@example.com"
           />
         </div>
         <button className="btn btn-success w-100" disabled={busy} type="submit">

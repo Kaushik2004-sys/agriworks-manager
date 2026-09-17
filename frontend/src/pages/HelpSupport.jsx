@@ -63,10 +63,13 @@ export default function HelpSupport() {
           <div className={`accordion-collapse collapse ${open === 'login' ? 'show' : ''}`}>
             <div className="accordion-body small">
               <h6 className="fw-semibold">{t('How to log in')}</h6>
-              <p className="mb-2">{t('Open the Login page and enter your registered Email (or Username) and Password, then click Login.')}</p>
+              <p className="mb-2">{t('Open the Login page and enter your registered Email, Username, or Registered Mobile Number and Password, then click Login.')}</p>
 
               <h6 className="fw-semibold">{t('What to do if login fails')}</h6>
-              <p className="mb-2">{t('Check that Caps Lock is off, your email and password are correct, and your account exists. If you forgot your password, use Forgot Password.')}</p>
+              <p className="mb-2">{t('Check that Caps Lock is off, your email/username/mobile and password are correct, and your account exists. If you forgot your password, use Forgot Password.')}</p>
+
+              <h6 className="fw-semibold">{t('Login Security')}</h6>
+              <p className="mb-2">{t('For security, login attempts are rate-limited. A new login on another device will end your previous session (single active session per account). Each successful login records the date, time, IP address, and browser information for your audit trail.')}</p>
 
               <h6 className="fw-semibold">{t('Forgot password instructions')}</h6>
               <p className="mb-2">{t('On the Login page click "Forgot Password?", enter your registered email and click "Send Reset Link".')}</p>
@@ -96,7 +99,7 @@ export default function HelpSupport() {
           <div className={`accordion-collapse collapse ${open === 'farmers' ? 'show' : ''}`}>
             <div className="accordion-body small">
               <h6 className="fw-semibold">{t('How to add a farmer')}</h6>
-              <p className="mb-2">{t('Go to Farmers and click Add Farmer. Fill Name, 10-digit Mobile, Village and optional Address, then Save.')}</p>
+              <p className="mb-2">{t('Go to Farmers and click Add Farmer. Fill Name, Mobile (10 digits, first digit 6–9; +91 prefix is fixed and not stored), Village and optional Address, then Save.')}</p>
               <h6 className="fw-semibold">{t('How to view farmer records')}</h6>
               <p className="mb-2">{t('Open Farmers to see all your farmers in a table.')}</p>
               <h6 className="fw-semibold">{t('How to edit farmer information')}</h6>
@@ -132,7 +135,9 @@ export default function HelpSupport() {
                 ))}
               </p>
               <p className="mb-1">{t('Work records are linked to farmers. Each work belongs to one farmer and cannot be assigned to another user\'s farmer.')}</p>
-              <p className="mb-0">{t('Work date, area and amount are recorded. Date cannot be in the future, area must be greater than 0, amount cannot be negative.')}</p>
+              <p className="mb-1">{t('Work date, area and amount are recorded. Date cannot be in the future, area must be greater than 0, amount cannot be negative.')}</p>
+              <p className="mb-1">{t('Irrigation uses duration (hours/minutes) and rate per hour. Land Leveling uses area and rate per acre. Other requires a work description and manual total amount.')}</p>
+              <p className="mb-0">{t('Saved work records are locked and cannot be edited. Corrections require a new record.')}</p>
             </div>
           </div>
         </div>
@@ -180,7 +185,7 @@ export default function HelpSupport() {
           <div className={`accordion-collapse collapse ${open === 'payments' ? 'show' : ''}`}>
             <div className="accordion-body small">
               <h6 className="fw-semibold">{t('How to record a payment')}</h6>
-              <p className="mb-2">{t('Go to Payments, search and select a Farmer, then select one of their Work/Bill records, click Record Payment, enter Payment Date, Method and Amount, then Save.')}</p>
+              <p className="mb-2">{t('Go to Payments, search and select a Farmer, then select one of their Work/Bill records, click Record Payment, enter Payment Date, Method and Amount (whole rupees only, minimum Rs 1), then Save.')}</p>
               <h6 className="fw-semibold">{t('Explain partial payments')}</h6>
               <p className="mb-2">{t('You can pay a bill in multiple installments. Each payment is recorded separately.')}</p>
               <h6 className="fw-semibold">{t('Explain pending amount')}</h6>
@@ -206,7 +211,7 @@ export default function HelpSupport() {
           <div className={`accordion-collapse collapse ${open === 'expenses' ? 'show' : ''}`}>
             <div className="accordion-body small">
               <h6 className="fw-semibold">{t('How to add an expense')}</h6>
-              <p className="mb-2">{t('Go to Expenses and click Add Expense. Select Expense Type, enter Amount, Date and optional Description, then Save.')}</p>
+              <p className="mb-2">{t('Go to Expenses and click Add Expense. Select Expense Type, enter Amount (whole rupees only, minimum Rs 1), Date and optional Description, then Save.')}</p>
               <h6 className="fw-semibold">{t('Available expense types:')}</h6>
               <p className="mb-0">
                 {EXPENSE_TYPES.map((et) => (

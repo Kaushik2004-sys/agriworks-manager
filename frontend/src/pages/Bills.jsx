@@ -4,13 +4,29 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
+import WorkTypeIcon from '../components/WorkTypeIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createBill, deleteBill, listBills, listUnbilledWorks } from '../services/bills';
 import { listWorks } from '../services/works';
 
 const STATUS_OPTIONS = ['Unpaid', 'Partial', 'Paid'];
+
+// Simple trustworthy status words; CSS class only changes presentation.
+function statusBadgeClass(status) {
+  if (status === 'Paid') return 'aw-badge aw-badge-paid';
+  if (status === 'Partial') return 'aw-badge aw-badge-partial';
+  return 'aw-badge aw-badge-pending';
+}
+
+function statusIcon(status) {
+  if (status === 'Paid') return '✅ ';
+  if (status === 'Partial') return '◐ ';
+  return '⏳ ';
+}
 
 export default function Bills() {
   const { t } = useLanguage();
@@ -25,6 +41,8 @@ export default function Bills() {
   const [form, setForm] = useState({ work: '', bill_date: '', total_amount: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load(searchText = search, status = filterStatus) {
     setLoading(true);
@@ -120,22 +138,50 @@ export default function Bills() {
       setShowForm(false);
       load(search.trim(), filterStatus);
       loadUnbilled();
-    } catch {
-      // Keep form data intact; show friendly message without technical details.
-      setFormError('Save failed. Please try again.');
+    } catch (err) {
+      // P11: show the backend validation message (e.g. duplicate bill,
+      // locked total) like Works does; keep form data intact.
+      const data = err?.response?.data;
+      let msg = 'Save failed. Please try again.';
+      if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find((v) => typeof v === 'string' && v);
+        if (first) msg = first;
+      } else if (typeof data === 'string' && data) {
+        msg = data;
+      }
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
   }
 
+  // Same delete logic; friendlier accessible dialog instead of window.confirm.
   async function handleDelete(id) {
-    if (!window.confirm(t('Delete this bill?'))) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId == null) return;
+    setDeleting(true);
     try {
-      await deleteBill(id);
+      await deleteBill(pendingDeleteId);
+      setPendingDeleteId(null);
       load(search.trim(), filterStatus);
       loadUnbilled();
-    } catch {
-      setError('Delete failed. Please try again.');
+    } catch (err) {
+      // Surface the backend delete-guard message (e.g. paid bill cannot
+      // be deleted); fall back to the generic message.
+      const data = err.response?.data;
+      let msg = '';
+      if (Array.isArray(data) && data.length) msg = data[0];
+      else if (data && typeof data === 'object') {
+        const first = Object.values(data).flat().find(Boolean);
+        msg = Array.isArray(first) ? first[0] : first;
+      } else if (typeof data === 'string') msg = data;
+      setError(msg ? String(msg) : 'Delete failed. Please try again.');
+      setPendingDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -145,19 +191,28 @@ export default function Bills() {
     <div className="container py-4">
       <BackButton to="/" label="Back to Home" />
       <BackButton to="/works" nextTo="/payments" />
-      <h2 className="fw-bold">{t('Billing Management')}</h2>
+      <PageHeader
+        title="Billing Management"
+        subtitle="Bills made from work — see paid, pending, and status."
+        actionLabel="🧾 Generate Bill"
+        onAction={startAdd}
+      />
 
-      <form className="row g-2 mb-3" onSubmit={handleFilter}>
+      <form className="row g-2 mb-3" onSubmit={handleFilter} role="search">
         <div className="col-12 col-md-5">
+          <label className="visually-hidden" htmlFor="bill-search">{t('Search bills')}</label>
           <input
+            id="bill-search"
             className="form-control"
-            placeholder={t('Search farmer, mobile, work type...')}
+            type="search"
+            placeholder={t('Search bills — farmer, mobile, work type...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <div className="col-6 col-md-3">
-          <select className="form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <label className="visually-hidden" htmlFor="bill-status">{t('Bill status')}</label>
+          <select id="bill-status" className="form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">{t('All status')}</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{t(s)}</option>
@@ -165,23 +220,23 @@ export default function Bills() {
           </select>
         </div>
         <div className="col-12 col-md-4 d-flex gap-2 flex-wrap">
-          <button className="btn btn-outline-success" type="submit">{t('Filter')}</button>
-          <button className="btn btn-success" type="button" onClick={startAdd}>{t('Generate Bill')}</button>
+          <button className="btn btn-outline-success" type="submit">{t('🔍 Filter')}</button>
         </div>
       </form>
 
       {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterStatus)} />}
 
       {showForm && (
-        <div className="card mb-3">
+        <div className="card mb-3 aw-form-block">
           <div className="card-body">
-            <h5 className="card-title">{t('Generate Bill from Work')}</h5>
-            {formError && <div className="alert alert-danger">{t(formError)}</div>}
+            <h5 className="card-title">{t('🧾 Generate Bill from Work')}</h5>
+            {formError && <div className="alert alert-danger" role="alert">{t(formError)}</div>}
             <form onSubmit={handleSave}>
               <div className="row g-2">
                 <div className="col-12">
-                  <label className="form-label">{t('Work record *')}</label>
+                  <label className="form-label" htmlFor="bill-work">{t('Work record *')}</label>
                   <select
+                    id="bill-work"
                     className="form-select"
                     value={form.work}
                     onChange={(e) => handleWorkChange(e.target.value)}
@@ -250,12 +305,18 @@ export default function Bills() {
       )}
 
       {loading ? (
-        <p className="text-muted">{t('Loading bills...')}</p>
+        <p className="text-muted" role="status">{t('Loading bills...')}</p>
       ) : bills.length === 0 ? (
-        <EmptyState message="No bills found." />
+        <EmptyState
+          icon="🧾"
+          title="No bills yet."
+          message="Make a bill from finished work."
+          actionLabel="🧾 Generate Bill"
+          onAction={startAdd}
+        />
       ) : (
         <div className="table-responsive">
-          <table className="table table-striped table-bordered">
+          <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
                 <th>{t('Farmer')}</th>
@@ -271,23 +332,33 @@ export default function Bills() {
             <tbody>
               {bills.map((b) => (
                 <tr key={b.id}>
-                  <td>{b.farmer_name}<br /><small className="text-muted">{b.farmer_village}</small></td>
-                  <td>{t(b.work_type)}<br /><small className="text-muted">{b.work_date}</small></td>
-                  <td>{b.bill_date}</td>
-                  <td>Rs {b.total_amount}</td>
-                  <td>Rs {b.paid_amount}</td>
-                  <td>Rs {b.pending_amount}</td>
-                  <td><span className="badge bg-secondary">{t(b.status)}</span></td>
-                  <td className="text-nowrap">
-                    <Link className="btn btn-sm btn-success me-2" to={`/payments?bill=${b.id}`}>{t('Pay')}</Link>
+                  <td data-label={t('Farmer')}><strong>{b.farmer_name}</strong><br /><small className="text-muted">{b.farmer_village}</small></td>
+                  <td data-label={t('Work')}><WorkTypeIcon type={b.work_type} />{t(b.work_type)}<br /><small className="text-muted">{b.work_date}</small></td>
+                  <td data-label={t('Bill Date')}>{b.bill_date}</td>
+                  <td data-label={t('Total')}><span className="aw-money">₹{b.total_amount}</span></td>
+                  <td data-label={t('Paid')}>₹{b.paid_amount}</td>
+                  <td data-label={t('Pending')}><strong>₹{b.pending_amount}</strong></td>
+                  <td data-label={t('Status')}><span className={statusBadgeClass(b.status)}>{statusIcon(b.status)}{t(b.status === 'Partial' ? 'Partially Paid' : b.status === 'Unpaid' ? 'Pending' : b.status)}</span></td>
+                  <td data-label={t('Actions')} className="text-nowrap">
+                    <Link className="btn btn-sm btn-success me-2" to={`/payments?bill=${b.id}`}>{t('💰 Pay')}</Link>
                     <span className="badge bg-secondary me-2" title={t('Generated bills are finalized and cannot be edited.')}>🔒 {t('Final')}</span>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b.id)}>{t('Delete')}</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b.id)}>{t('🗑️ Delete')}</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {pendingDeleteId != null && (
+        <ConfirmDialog
+          title="Delete this bill?"
+          message="This will remove this bill from your records. Paid bills may be protected."
+          confirmLabel="Delete"
+          busy={deleting}
+          onCancel={() => { if (!deleting) setPendingDeleteId(null); }}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );
