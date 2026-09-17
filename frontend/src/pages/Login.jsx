@@ -44,17 +44,27 @@ export default function Login() {
     } catch (err) {
       // M12: extract the real backend message from any DRF shape
       // ({error}, {detail} e.g. throttled 429s, {field: [...]},
-      // {non_field_errors: [...]}, array, plain string). Generic
-      // fallback only when nothing usable is present.
+      // {non_field_errors: [...]}, array, plain string). A production
+      // 500 returns an HTML error page, which must never be dumped into
+      // the UI - it carries no usable message. Status-based fallbacks
+      // apply only when no backend message could be extracted, so real
+      // messages (401 invalid credentials, 429 detail, validation
+      // errors) keep working exactly as before.
+      const status = err.response?.status;
       const data = err.response?.data;
       let msg = '';
-      if (typeof data === 'string') msg = data;
+      if (typeof data === 'string' && !data.trim().startsWith('<')) msg = data;
       else if (typeof data?.error === 'string') msg = data.error;
       else if (typeof data?.detail === 'string') msg = data.detail;
       else if (Array.isArray(data) && data.length) msg = data[0];
       else if (data && typeof data === 'object') {
         const first = Object.values(data).flat().find(Boolean);
         msg = Array.isArray(first) ? first[0] : first;
+      }
+      if (!msg) {
+        if (status === 401) msg = 'Invalid email or password.';
+        else if (status === 429) msg = 'Too many attempts. Please try again later.';
+        else if (status >= 500) msg = 'Server error. Please try again later.';
       }
       setError(msg ? String(msg) : 'Login failed. Check backend connection.');
     } finally {
