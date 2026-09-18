@@ -166,3 +166,28 @@ def is_valid_last_name(value):
     if not isinstance(value, str) or not value:
         return False
     return _is_name_word(value)
+
+
+# Business punctuation explicitly permitted inside Company Name.
+# Everything else outside letters/marks/numbers/spaces is rejected,
+# which also blocks HTML/script markup (<, >, /) and emoji.
+_COMPANY_PUNCT = frozenset(" &.-'")
+
+
+def is_valid_company_name(value):
+    """Company Name: optional; otherwise letters/marks/numbers/spaces
+    plus & . - ' only. Operates on the raw submitted value: exactly
+    empty stays valid (field is optional), whitespace-only is rejected,
+    and the stored value keeps existing strip behavior."""
+    if value is None or value == '':
+        return True
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    if not text:
+        return False
+    return all(
+        unicodedata.category(ch)[0] in ('L', 'M', 'N')
+        or ch in _COMPANY_PUNCT
+        for ch in text
+    )

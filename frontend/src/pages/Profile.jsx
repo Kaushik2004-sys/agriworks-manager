@@ -7,6 +7,14 @@ import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PASSWORD_HINT, passwordError } from '../utils/validatePassword';
 
+// Company Name is optional: blank stays valid, otherwise Unicode
+// letters, numbers, spaces and & . - ' only (whitespace-only rejected).
+function isValidCompanyName(v) {
+  if (v === '') return true;
+  const t = v.trim();
+  return !!t && /^[\p{L}\p{M}\p{Nd} &.\-']+$/u.test(t);
+}
+
 export default function Profile() {
   const { user, loadProfile, updateProfile, changePassword } = useAuth();
   const { t } = useLanguage();
@@ -88,6 +96,9 @@ export default function Profile() {
       return 'Last Name must contain only letters without spaces.';
     }
     if (form.company_name.trim().length > 150) return 'Company / Business Name is too long.';
+    if (!isValidCompanyName(form.company_name)) {
+      return 'Company Name contains invalid characters.';
+    }
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) return 'Mobile Number must be 10 digits.';
     return '';
   }

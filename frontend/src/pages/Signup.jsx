@@ -20,6 +20,14 @@ const emptyForm = {
   confirm_password: '',
 };
 
+// Company Name is optional: blank stays valid, otherwise Unicode
+// letters, numbers, spaces and & . - ' only (whitespace-only rejected).
+function isValidCompanyName(v) {
+  if (v === '') return true;
+  const t = v.trim();
+  return !!t && /^[\p{L}\p{M}\p{Nd} &.\-']+$/u.test(t);
+}
+
 export default function Signup() {
   const { register } = useAuth();
   const { t } = useLanguage();
@@ -45,6 +53,9 @@ export default function Signup() {
     if (!form.email.trim()) return 'Email is required.';
     if (!isValidEmail(form.email)) {
       return INVALID_EMAIL_MESSAGE;
+    }
+    if (!isValidCompanyName(form.company_name)) {
+      return 'Company Name contains invalid characters.';
     }
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) {
       return 'Mobile Number must be 10 digits.';

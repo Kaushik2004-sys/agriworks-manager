@@ -222,7 +222,9 @@ def profile_view(request):
     # trimmed). On PATCH, only validate when a new value is actually
     # supplied, so a previously stored value can never block unrelated
     # updates.
-    from .validators import is_valid_full_name, is_valid_last_name
+    from .validators import (
+        is_valid_company_name, is_valid_full_name, is_valid_last_name,
+    )
     if not partial or 'full_name' in data:
         _raw_full = data.get('full_name', full_name)
         if not isinstance(_raw_full, str) or not is_valid_full_name(_raw_full):
@@ -244,6 +246,16 @@ def profile_view(request):
     if len(company_name) > 150:
         return Response({'error': 'Company / Business Name is too long.'},
                         status=status.HTTP_400_BAD_REQUEST)
+    # Same company rule as registration: blank stays valid (optional),
+    # otherwise Unicode letters, numbers, spaces and & . - ' only.
+    # Checked against the raw submitted value so whitespace-only input
+    # is rejected. On PATCH, only validate when a value is supplied.
+    if not partial or 'company_name' in data:
+        _raw_company = data.get('company_name', company_name)
+        if not isinstance(_raw_company, str) or not is_valid_company_name(_raw_company):
+            return Response(
+                {'error': 'Company Name contains invalid characters.'},
+                status=status.HTTP_400_BAD_REQUEST)
     # M1: same rule as registration/login - exactly 10 digits starting
     # with 6/7/8/9 (+91 stays UI-only, never stored). M2 (app-level only,
     # no schema change): another user's number cannot be taken, while

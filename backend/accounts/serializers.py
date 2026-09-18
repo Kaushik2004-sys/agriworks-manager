@@ -5,6 +5,7 @@ from rest_framework import serializers
 from .models import UserProfile
 from .validators import (
     domain_typo_error,
+    is_valid_company_name,
     is_valid_email,
     is_valid_full_name,
     is_valid_last_name,
@@ -71,6 +72,16 @@ class RegisterSerializer(serializers.Serializer):
                 'Last Name must contain only letters without spaces.')
         return value
 
+    def validate_company_name(self, value):
+        # Optional field: blank stays valid. Otherwise Unicode letters,
+        # numbers, spaces and & . - ' only (checked against the raw
+        # submitted value so whitespace-only input is rejected).
+        raw = self._raw_initial('company_name', value)
+        if not is_valid_company_name(raw if isinstance(raw, str) else ''):
+            raise serializers.ValidationError(
+                'Company Name contains invalid characters.')
+        return value
+
     def validate_email(self, value):
         value = (value or '').strip().lower()
         if not value:
@@ -90,6 +101,7 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate_mobile(self, value):
+
         value = (value or '').strip()
         # M1: one consistent rule everywhere (registration, profile,
         # login): exactly 10 digits, first digit 6/7/8/9. The UI shows a
