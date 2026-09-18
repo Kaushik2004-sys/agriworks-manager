@@ -3,7 +3,13 @@ import re
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from .models import UserProfile
-from .validators import domain_typo_error, is_valid_email, password_error
+from .validators import (
+    domain_typo_error,
+    is_valid_email,
+    is_valid_full_name,
+    is_valid_last_name,
+    password_error,
+)
 
 
 def _get_profile(user):
@@ -45,23 +51,24 @@ class RegisterSerializer(serializers.Serializer):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('Full Name is required.')
-        # Full Name holds complete names (e.g. 'Rahul Sharma'): letters
-        # with single internal spaces only. No numbers, symbols or emojis;
-        # leading, trailing and consecutive spaces are rejected.
-        if not re.fullmatch(r'[A-Za-z]+( [A-Za-z]+)*',
-                            self._raw_initial('full_name', value)):
+        # Full Name holds complete names ('Rahul Sharma', 'राहुल शर्मा'):
+        # Unicode letters with single internal spaces only. Checked
+        # against the raw submitted value (see _raw_initial) so
+        # leading/trailing/double spaces are rejected, not trimmed away.
+        if not is_valid_full_name(
+                self._raw_initial('full_name', value)):
             raise serializers.ValidationError(
-                'Full Name must contain only letters (A-Z, a-z) and single spaces.')
+                'Full Name must contain only letters with single spaces between words.')
         return value
 
     def validate_last_name(self, value):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('Last Name is required.')
-        if not re.fullmatch(r'[A-Za-z]+',
-                            self._raw_initial('last_name', value)):
+        if not is_valid_last_name(
+                self._raw_initial('last_name', value)):
             raise serializers.ValidationError(
-                'Last Name must contain only letters (A-Z, a-z).')
+                'Last Name must contain only letters without spaces.')
         return value
 
     def validate_email(self, value):

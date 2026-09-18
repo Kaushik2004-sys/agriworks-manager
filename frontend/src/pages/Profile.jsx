@@ -79,13 +79,13 @@ export default function Profile() {
   function validateProfile() {
     if (!form.full_name.trim()) return 'Full Name is required.';
     if (form.full_name.trim().length > 150) return 'Full Name is too long.';
-    if (!/^[A-Za-z]+( [A-Za-z]+)*$/.test(form.full_name)) {
-      return 'Full Name must contain only letters (A-Z, a-z) and single spaces.';
+    if (!/^\p{L}[\p{L}\p{M}]*( \p{L}[\p{L}\p{M}]*)*$/u.test(form.full_name)) {
+      return 'Full Name must contain only letters with single spaces between words.';
     }
     if (!form.last_name.trim()) return 'Last Name is required.';
     if (form.last_name.trim().length > 150) return 'Last Name is too long.';
-    if (!/^[A-Za-z]+$/.test(form.last_name)) {
-      return 'Last Name must contain only letters (A-Z, a-z).';
+    if (!/^\p{L}[\p{L}\p{M}]*$/u.test(form.last_name)) {
+      return 'Last Name must contain only letters without spaces.';
     }
     if (form.company_name.trim().length > 150) return 'Company / Business Name is too long.';
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) return 'Mobile Number must be 10 digits.';

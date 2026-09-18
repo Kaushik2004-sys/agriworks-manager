@@ -2,6 +2,7 @@
 # Rules: valid local part, exactly one @, valid domain with a dot,
 # letter-only extension of at least 2 chars (e.g. .com, .in, .org).
 import re
+import unicodedata
 
 PASSWORD_MESSAGE = (
     'Password must be at least 8 characters and include '
@@ -130,3 +131,38 @@ def password_error(value):
             or not re.search(r'[^A-Za-z0-9]', value)):
         return PASSWORD_MESSAGE
     return None
+
+
+def _is_name_word(word):
+    """One name word: starts with a Unicode letter, rest letters/marks.
+
+    Letters (L*) cover Latin and Devanagari consonants/vowels; marks
+    (M*) cover Devanagari matras/nukta so words like 'राहुल' validate
+    correctly. Numbers, punctuation, symbols and emoji are excluded.
+    """
+    if not word:
+        return False
+    if unicodedata.category(word[0])[0] != 'L':
+        return False
+    return all(unicodedata.category(ch)[0] in ('L', 'M')
+               for ch in word[1:])
+
+
+def is_valid_full_name(value):
+    """Full Name: Unicode-letter words separated by single ASCII spaces.
+
+    Rejects numbers, punctuation, symbols, emoji and leading/trailing/
+    consecutive spaces. Operates on the raw submitted value.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    if value[0] == ' ' or value[-1] == ' ' or '  ' in value:
+        return False
+    return all(_is_name_word(word) for word in value.split(' '))
+
+
+def is_valid_last_name(value):
+    """Last Name: a single Unicode-letter word, no spaces."""
+    if not isinstance(value, str) or not value:
+        return False
+    return _is_name_word(value)

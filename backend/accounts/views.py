@@ -216,17 +216,18 @@ def profile_view(request):
     if len(full_name) > 150:
         return Response({'error': 'Full Name is too long.'},
                         status=status.HTTP_400_BAD_REQUEST)
-    # Same character rule as registration: letters with single internal
-    # spaces only (checked against the raw submitted value so leading,
-    # trailing and consecutive spaces are rejected, not silently trimmed).
-    # On PATCH, only validate when a new value is actually supplied, so a
-    # previously stored value can never block unrelated updates.
+    # Same character rule as registration: Unicode letters with single
+    # internal spaces only (checked against the raw submitted value so
+    # leading, trailing and consecutive spaces are rejected, not silently
+    # trimmed). On PATCH, only validate when a new value is actually
+    # supplied, so a previously stored value can never block unrelated
+    # updates.
+    from .validators import is_valid_full_name, is_valid_last_name
     if not partial or 'full_name' in data:
         _raw_full = data.get('full_name', full_name)
-        if not isinstance(_raw_full, str) or not re.fullmatch(
-                r'[A-Za-z]+( [A-Za-z]+)*', _raw_full):
+        if not isinstance(_raw_full, str) or not is_valid_full_name(_raw_full):
             return Response(
-                {'error': 'Full Name must contain only letters (A-Z, a-z) and single spaces.'},
+                {'error': 'Full Name must contain only letters with single spaces between words.'},
                 status=status.HTTP_400_BAD_REQUEST)
     if not last_name and (not partial or 'last_name' in data):
         return Response({'error': 'Last Name is required.'},
@@ -236,10 +237,9 @@ def profile_view(request):
                         status=status.HTTP_400_BAD_REQUEST)
     if not partial or 'last_name' in data:
         _raw_last = data.get('last_name', last_name)
-        if not isinstance(_raw_last, str) or not re.fullmatch(
-                r'[A-Za-z]+', _raw_last):
+        if not isinstance(_raw_last, str) or not is_valid_last_name(_raw_last):
             return Response(
-                {'error': 'Last Name must contain only letters (A-Z, a-z).'},
+                {'error': 'Last Name must contain only letters without spaces.'},
                 status=status.HTTP_400_BAD_REQUEST)
     if len(company_name) > 150:
         return Response({'error': 'Company / Business Name is too long.'},
