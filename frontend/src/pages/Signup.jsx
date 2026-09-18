@@ -34,7 +34,13 @@ export default function Signup() {
 
   function validate() {
     if (!form.full_name.trim()) return 'Full Name is required.';
+    if (!/^[A-Za-z]+( [A-Za-z]+)*$/.test(form.full_name)) {
+      return 'Full Name must contain only letters (A-Z, a-z) and single spaces.';
+    }
     if (!form.last_name.trim()) return 'Last Name is required.';
+    if (!/^[A-Za-z]+$/.test(form.last_name)) {
+      return 'Last Name must contain only letters (A-Z, a-z).';
+    }
     if (form.last_name.trim().length > 150) return 'Last Name is too long.';
     if (!form.email.trim()) return 'Email is required.';
     if (!isValidEmail(form.email)) {

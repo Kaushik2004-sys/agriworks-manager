@@ -29,16 +29,39 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError(err)
         return value
 
+    def _raw_initial(self, name, value):
+        # DRF CharField strips leading/trailing whitespace before field
+        # validators run, so read the raw submitted string to enforce the
+        # no-leading/trailing/double-space rule. Falls back to the
+        # (stripped) value for non-dict inputs.
+        data = getattr(self, 'initial_data', None)
+        if isinstance(data, dict):
+            candidate = data.get(name, value)
+            if isinstance(candidate, str):
+                return candidate
+        return value
+
     def validate_full_name(self, value):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('Full Name is required.')
+        # Full Name holds complete names (e.g. 'Rahul Sharma'): letters
+        # with single internal spaces only. No numbers, symbols or emojis;
+        # leading, trailing and consecutive spaces are rejected.
+        if not re.fullmatch(r'[A-Za-z]+( [A-Za-z]+)*',
+                            self._raw_initial('full_name', value)):
+            raise serializers.ValidationError(
+                'Full Name must contain only letters (A-Z, a-z) and single spaces.')
         return value
 
     def validate_last_name(self, value):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('Last Name is required.')
+        if not re.fullmatch(r'[A-Za-z]+',
+                            self._raw_initial('last_name', value)):
+            raise serializers.ValidationError(
+                'Last Name must contain only letters (A-Z, a-z).')
         return value
 
     def validate_email(self, value):
