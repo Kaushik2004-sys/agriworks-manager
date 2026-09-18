@@ -1118,3 +1118,46 @@ textarea:focus-visible {
   background: var(--color-dark-surface);
   color: inherit;
 }
+
+/* Dark theme form + surface consistency (light theme untouched).
+   The base `.form-control, .form-select` rule hardcodes a white
+   background, which defeated Bootstrap's native dark inputs app-wide.
+   These dark-scoped overrides restore dark inputs, readable
+   placeholders, and themed dialog/stat/mobile-table surfaces. */
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+  background-color: var(--color-dark-surface-elevated);
+  border-color: var(--color-dark-border);
+  color: var(--color-dark-text-primary);
+}
+
+[data-bs-theme="dark"] .form-control::placeholder {
+  color: var(--color-dark-text-secondary);
+  opacity: 1;
+}
+
+[data-bs-theme="dark"] .aw-dialog,
+[data-bs-theme="dark"] .aw-stat-card {
+  background: var(--color-dark-surface);
+  border-color: var(--color-dark-border);
+}
+
+@media (max-width: 767.98px) {
+  [data-bs-theme="dark"] .aw-cards-table tr {
+    background: var(--color-dark-surface);
+    border-color: var(--color-dark-border);
+  }
+  [data-bs-theme="dark"] .aw-cards-table td::before {
+    color: inherit;
+  }
+}
+
+/* Dark theme autofill: stop browsers painting saved credentials
+   with a light background over dark inputs. */
+[data-bs-theme="dark"] input:-webkit-autofill,
+[data-bs-theme="dark"] input:-webkit-autofill:hover,
+[data-bs-theme="dark"] input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-dark-text-primary);
+  -webkit-box-shadow: 0 0 0 100px var(--color-dark-surface-elevated) inset;
+  caret-color: var(--color-dark-text-primary);
+}
