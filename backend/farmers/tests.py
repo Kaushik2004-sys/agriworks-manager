@@ -13,7 +13,7 @@ class FarmerMobileConsistencyTests(APITestCase):
         token = Token.objects.create(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
 
-    def post_farmer(self, mobile, name='M15 Farmer'):
+    def post_farmer(self, mobile, name='M Farmer'):
         return self.client.post('/api/farmers/', {
             'name': name, 'mobile': mobile, 'village': 'V',
         }, format='json')
@@ -51,13 +51,13 @@ class FarmerMobileConsistencyTests(APITestCase):
         farmer = res.data['id']
         # Edit to another valid number succeeds.
         res = self.client.put(f'/api/farmers/{farmer}/', {
-            'name': 'M15 Farmer', 'mobile': '8765432109', 'village': 'V',
+            'name': 'M Farmer', 'mobile': '8765432109', 'village': 'V',
         }, format='json')
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(res.data['mobile'], '8765432109')
         # Edit to an invalid number is rejected; stored value untouched.
         res = self.client.put(f'/api/farmers/{farmer}/', {
-            'name': 'M15 Farmer', 'mobile': '5123456789', 'village': 'V',
+            'name': 'M Farmer', 'mobile': '5123456789', 'village': 'V',
         }, format='json')
         self.assertEqual(res.status_code, 400)
         res = self.client.get(f'/api/farmers/{farmer}/')
@@ -65,7 +65,7 @@ class FarmerMobileConsistencyTests(APITestCase):
 
     def test_existing_functionality_intact(self):
         self.assertEqual(self.post_farmer('9876543210').status_code, 201)
-        res = self.client.get('/api/farmers/?search=M15')
+        res = self.client.get('/api/farmers/?search=M')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['mobile'], '9876543210')

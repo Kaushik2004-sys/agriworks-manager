@@ -449,7 +449,7 @@ class WorkConcurrencyTests(TransactionTestCase):
         assert res.status_code == 201, res.content
         self.farmer = res.data['id']
         res = client.post('/api/farmers/', {
-            'name': 'Race Farmer 2', 'mobile': '8887776665', 'village': 'W',
+            'name': 'Race Farmer', 'mobile': '8887776665', 'village': 'W',
         }, format='json')
         assert res.status_code == 201, res.content
         self.farmer2 = res.data['id']

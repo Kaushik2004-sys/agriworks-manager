@@ -1,5 +1,6 @@
 # Phase 3: Farmer serializer with validation.
 import re
+from accounts.validators import is_valid_full_name
 from rest_framework import serializers
 from .models import Farmer
 
@@ -14,6 +15,18 @@ class FarmerSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError('Farmer name is required.')
+        # Farmer names follow the shared multilingual rule (Unicode
+        # letters with single internal spaces). Checked against the raw
+        # submitted value so leading/trailing/double spaces are rejected.
+        raw = value
+        data = getattr(self, 'initial_data', None)
+        if isinstance(data, dict):
+            candidate = data.get('name', value)
+            if isinstance(candidate, str):
+                raw = candidate
+        if not is_valid_full_name(raw):
+            raise serializers.ValidationError(
+                'Farmer name must contain only letters with single spaces between words.')
         return value
 
     def validate_mobile(self, value):

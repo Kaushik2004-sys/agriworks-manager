@@ -69,6 +69,9 @@ export default function Farmers() {
 
   function validateForm() {
     if (!form.name.trim()) return 'Farmer name is required.';
+    if (!/^\p{L}[\p{L}\p{M}]*( \p{L}[\p{L}\p{M}]*)*$/u.test(form.name)) {
+      return 'Farmer name must contain only letters with single spaces between words.';
+    }
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) return 'Mobile number must be 10 digits.';
     if (!form.village.trim()) return 'Village is required.';
     return '';
