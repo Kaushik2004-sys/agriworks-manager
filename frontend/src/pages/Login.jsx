@@ -1,4 +1,4 @@
-// Login page: Username or Registered Mobile Number + Password
+// Login page: Email or Registered Mobile Number + Password
 // (existing email logins still work). Links to Create New Account and
 // Forgot Password.
 import { useState } from 'react';
@@ -106,12 +106,9 @@ export default function Login() {
 
   return (
     <div className="container py-4 aw-auth-wrap aw-login-farm">
-      <div className="aw-brand-row">
-        <img src="/logo.png" alt="AgriWorks logo" />
-        <div>
-          <h2 className="fw-bold mb-0">{t('Login')}</h2>
-          <p className="text-muted mb-0">{t('Your digital register for farm work')}</p>
-        </div>
+      <div className="text-center mb-3">
+        <h2 className="fw-bold mb-0">{t('Login')}</h2>
+        <p className="text-muted mb-0">{t('Your digital register for farm work')}</p>
       </div>
 
       <div className="aw-auth-card">
@@ -119,7 +116,7 @@ export default function Login() {
 
       <form onSubmit={handleSubmit}>
         <div className="mb-3">
-          <label className="form-label" htmlFor="login-id">{t('Username or Registered Mobile Number')}</label>
+          <label className="form-label" htmlFor="login-id">{t('Email or Registered Mobile Number')}</label>
           <div className="position-relative">
             <PersonIcon />
             <input
@@ -129,7 +126,7 @@ export default function Login() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               autoComplete="username"
-              placeholder={t('Enter username or registered mobile number')}
+              placeholder={t('Enter Email or Registered Mobile Number')}
             />
           </div>
         </div>
