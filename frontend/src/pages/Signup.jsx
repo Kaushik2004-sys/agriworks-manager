@@ -220,7 +220,7 @@ export default function Signup() {
                   maxLength={10}
                   inputMode="numeric"
                   autoComplete="tel"
-                  placeholder="0000000000"
+                  placeholder={t('Enter 10-digit mobile number')}
                   pattern="[6-9][0-9]{9}"
                   aria-label={t('Mobile Number *')}
                 />
