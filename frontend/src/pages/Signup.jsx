@@ -33,43 +33,88 @@ export default function Signup() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
+  const [touched, setTouched] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
+    touch(key);
+  }
+
+  function touch(key) {
+    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }
+
+  // Single-field validation used both for real-time feedback (while
+  // typing, once the field has been touched) and for submit validation.
+  // Rules are identical in both cases; backend remains authoritative.
+  function getFieldError(key, f = form) {
+    const v = f[key] ?? '';
+    switch (key) {
+      case 'full_name':
+        if (!v.trim()) return 'Full Name is required.';
+        if (!/^\p{L}[\p{L}\p{M}]*( \p{L}[\p{L}\p{M}]*)*$/u.test(v)) {
+          return 'Full Name must contain only letters with single spaces between words.';
+        }
+        return '';
+      case 'last_name':
+        if (!v.trim()) return 'Last Name is required.';
+        if (!/^\p{L}[\p{L}\p{M}]*$/u.test(v)) {
+          return 'Last Name must contain only letters without spaces.';
+        }
+        if (v.trim().length > 150) return 'Last Name is too long.';
+        return '';
+      case 'email':
+        if (!v.trim()) return 'Email is required.';
+        if (!isValidEmail(v)) return INVALID_EMAIL_MESSAGE;
+        return '';
+      case 'company_name':
+        if (!isValidCompanyName(v)) return 'Company Name contains invalid characters.';
+        return '';
+      case 'mobile':
+        if (!/^[6-9]\d{9}$/.test(v.trim())) return 'Mobile Number must be 10 digits.';
+        return '';
+      case 'password':
+        if (!v) return 'Password is required.';
+        return passwordError(v) || '';
+      case 'confirm_password':
+        if (f.password !== v) return 'Passwords do not match.';
+        return '';
+      default:
+        return '';
+    }
   }
 
   function validate() {
-    if (!form.full_name.trim()) return 'Full Name is required.';
-    if (!/^\p{L}[\p{L}\p{M}]*( \p{L}[\p{L}\p{M}]*)*$/u.test(form.full_name)) {
-      return 'Full Name must contain only letters with single spaces between words.';
+    for (const key of ['full_name', 'last_name', 'email', 'company_name', 'mobile', 'password', 'confirm_password']) {
+      const msg = getFieldError(key);
+      if (msg) return msg;
     }
-    if (!form.last_name.trim()) return 'Last Name is required.';
-    if (!/^\p{L}[\p{L}\p{M}]*$/u.test(form.last_name)) {
-      return 'Last Name must contain only letters without spaces.';
-    }
-    if (form.last_name.trim().length > 150) return 'Last Name is too long.';
-    if (!form.email.trim()) return 'Email is required.';
-    if (!isValidEmail(form.email)) {
-      return INVALID_EMAIL_MESSAGE;
-    }
-    if (!isValidCompanyName(form.company_name)) {
-      return 'Company Name contains invalid characters.';
-    }
-    if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) {
-      return 'Mobile Number must be 10 digits.';
-    }
-    if (!form.password) return 'Password is required.';
-    const pwErr = passwordError(form.password);
-    if (pwErr) return pwErr;
-    if (form.password !== form.confirm_password) return 'Passwords do not match.';
     return '';
+  }
+
+  // Real-time feedback element for one field (rendered only after touch).
+  // Messages are English keys rendered through t(), so language switching
+  // updates visible errors automatically.
+  function fieldFeedback(key) {
+    if (!touched[key]) return null;
+    const msg = getFieldError(key);
+    if (!msg) return null;
+    return <div className="invalid-feedback d-block">{t(msg)}</div>;
+  }
+
+  function fieldClass(key) {
+    return `form-control${touched[key] && getFieldError(key) ? ' is-invalid' : ''}`;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setTouched({
+      full_name: true, last_name: true, company_name: true, email: true,
+      mobile: true, password: true, confirm_password: true,
+    });
     const localError = validate();
     if (localError) {
       setError(localError);
@@ -118,51 +163,60 @@ export default function Signup() {
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Full Name *')}</label>
             <input
-              className="form-control"
+              className={fieldClass('full_name')}
               value={form.full_name}
               onChange={(e) => set('full_name', e.target.value)}
+              onBlur={() => touch('full_name')}
               autoComplete="given-name"
             />
+            {fieldFeedback('full_name')}
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Last Name *')}</label>
             <input
-              className="form-control"
+              className={fieldClass('last_name')}
               value={form.last_name}
               onChange={(e) => set('last_name', e.target.value)}
+              onBlur={() => touch('last_name')}
               autoComplete="family-name"
             />
+            {fieldFeedback('last_name')}
           </div>
         </div>
         <div className="mb-3">
           <label className="form-label">{t('Company / Business Name')} <span className="text-muted">{t('(optional)')}</span></label>
-          <input
-            className="form-control"
-            value={form.company_name}
-            onChange={(e) => set('company_name', e.target.value)}
-            placeholder={t('Leave blank if none')}
-            autoComplete="organization"
-          />
+            <input
+              className={fieldClass('company_name')}
+              value={form.company_name}
+              onChange={(e) => set('company_name', e.target.value)}
+              onBlur={() => touch('company_name')}
+              placeholder={t('Leave blank if none')}
+              autoComplete="organization"
+            />
+            {fieldFeedback('company_name')}
         </div>
         <div className="row g-2">
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Email *')}</label>
             <input
               type="email"
-              className="form-control"
+              className={fieldClass('email')}
               value={form.email}
               onChange={(e) => set('email', e.target.value)}
+              onBlur={() => touch('email')}
               autoComplete="email"
             />
+            {fieldFeedback('email')}
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Mobile Number *')}</label>
             <div className="input-group">
               <span className="input-group-text" aria-hidden="true">+91</span>
 <input
-                  className="form-control"
+                  className={fieldClass('mobile')}
                   value={form.mobile}
                   onChange={(e) => set('mobile', e.target.value)}
+                  onBlur={() => touch('mobile')}
                   maxLength={10}
                   inputMode="numeric"
                   autoComplete="tel"
@@ -171,6 +225,7 @@ export default function Signup() {
                   aria-label={t('Mobile Number *')}
                 />
             </div>
+            {fieldFeedback('mobile')}
           </div>
         </div>
         <div className="row g-2">
@@ -178,22 +233,26 @@ export default function Signup() {
             <label className="form-label">{t('Password *')}</label>
             <input
               type="password"
-              className="form-control"
+              className={fieldClass('password')}
               value={form.password}
               onChange={(e) => set('password', e.target.value)}
+              onBlur={() => touch('password')}
               autoComplete="new-password"
             />
+            {fieldFeedback('password')}
             <div className="form-text">{t(PASSWORD_HINT)}</div>
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Confirm Password *')}</label>
             <input
               type="password"
-              className="form-control"
+              className={fieldClass('confirm_password')}
               value={form.confirm_password}
               onChange={(e) => set('confirm_password', e.target.value)}
+              onBlur={() => touch('confirm_password')}
               autoComplete="new-password"
             />
+            {fieldFeedback('confirm_password')}
           </div>
         </div>
         <button className="btn btn-success w-100" disabled={busy} type="submit">
