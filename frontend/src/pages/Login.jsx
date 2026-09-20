@@ -105,7 +105,7 @@ export default function Login() {
   }
 
   return (
-    <div className="container py-4 aw-auth-wrap aw-login-farm">
+    <div className="container py-4 my-auto aw-auth-wrap aw-login-farm">
       <div className="text-center mb-3">
         <h2 className="fw-bold mb-0">{t('Login')}</h2>
         <p className="text-muted mb-0">{t('Manage farm work easily')}</p>
