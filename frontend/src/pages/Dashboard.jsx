@@ -70,7 +70,7 @@ export default function Dashboard() {
   const company = data?.business?.company_name || user?.profile?.company_name || '';
 
   return (
-    <div className="container py-4 my-auto">
+    <div className="container py-4 aw-footer-flow">
       <h2 className="fw-bold">{t('Welcome,')} {user?.profile?.full_name || ''}</h2>
       {company && <p className="mb-0 fw-semibold">{company}</p>}
 

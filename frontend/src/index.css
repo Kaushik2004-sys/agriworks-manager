@@ -920,6 +920,16 @@ textarea:focus-visible {
   }
 }
 
+/* --- Desktop only: footer follows short page content instead of
+   sticking to the viewport bottom (Login + User Panel only, marked
+   with .aw-footer-flow). Below desktop the sticky footer behavior is
+   unchanged, so tablet/mobile layouts are untouched. */
+@media (min-width: 992px) {
+  .aw-footer-flow + footer {
+    margin-top: 0 !important;
+  }
+}
+
 /* Fixed bottom nav must never cover footer content on phones/tablets */
 @media (max-width: 991.98px) {
   footer {
