@@ -58,13 +58,13 @@ export default function ContactSupport() {
 
   const resolvedCount = reports.filter((r) => r.status === 'Resolved').length;
 
-  // Prefill from the logged-in account; never overwrite what the user typed.
+  // Name/Email are read-only and always reflect the logged-in account.
   useEffect(() => {
     if (user) {
       setForm((f) => ({
         ...f,
-        name: f.name || user.profile?.full_name || user.username || '',
-        email: f.email || user.email || '',
+        name: user.profile?.full_name || user.username || '',
+        email: user.email || '',
       }));
     }
   }, [user]);
@@ -173,6 +173,7 @@ export default function ContactSupport() {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   autoComplete="name"
+                  readOnly
                 />
               </div>
               <div className="col-12 col-md-6">
@@ -182,6 +183,7 @@ export default function ContactSupport() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   autoComplete="email"
+                  readOnly
                 />
               </div>
               <div className="col-12">
