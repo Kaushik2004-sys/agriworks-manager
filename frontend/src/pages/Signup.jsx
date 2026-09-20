@@ -141,7 +141,13 @@ export default function Signup() {
         const firstKey = Object.keys(data)[0];
         const val = data[firstKey];
         const firstMsg = Array.isArray(val) ? val[0] : String(val);
-        setError(firstKey === 'non_field_errors' ? firstMsg : `${firstKey}: ${firstMsg}`);
+        // Known backend messages are shown bare (translated via t())
+        // instead of prefixed with the raw API field key, so the
+        // existing translations actually match.
+        const knownMessage = firstMsg === 'This email address cannot be used.'
+          || firstMsg === 'This mobile number cannot be used.';
+        setError(firstKey === 'non_field_errors' || knownMessage
+          ? firstMsg : `${firstKey}: ${firstMsg}`);
       } else {
         setError('Registration failed. Check backend connection.');
       }
