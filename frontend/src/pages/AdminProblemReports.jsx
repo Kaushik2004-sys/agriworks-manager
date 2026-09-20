@@ -79,7 +79,7 @@ export default function AdminProblemReports() {
           <table className="table table-striped table-bordered aw-cards-table">
             <thead className="table-success">
               <tr>
-                <th>{t('Name')}</th>
+                <th>{t('Username')}</th>
                 <th>{t('Email')}</th>
                 <th>{t('Problem Type')}</th>
                 <th>{t('Description')}</th>
@@ -91,7 +91,7 @@ export default function AdminProblemReports() {
             <tbody>
               {visible.map((r) => (
                 <tr key={r.id}>
-                  <td data-label={t('Name')}>{r.username || r.name}</td>
+                  <td data-label={t('Username')}>{r.username || r.name}</td>
                   <td data-label={t('Email')} className="text-break">{r.email}</td>
                   <td data-label={t('Problem Type')}>{t(r.problem_type)}</td>
                   <td data-label={t('Description')}>{r.description}</td>
