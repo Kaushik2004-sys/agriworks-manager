@@ -310,9 +310,7 @@ function App() {
         <Route
           path="*"
           element={
-            <ProtectedRoute>
-              <NotFound />
-            </ProtectedRoute>
+            <NotFound />
           }
         />
       </Routes>

@@ -1,7 +1,7 @@
 // Frontend-only 404 page for invalid React Router URLs.
-// Catch-all route (see App.jsx). Uses existing BackButton + Bootstrap
+// Catch-all route (see App.jsx): public so guests and authenticated
+// users alike see it. Uses existing BackButton + Bootstrap
 // styling, i18n t(), Light/Dark and responsive container layout.
-// Auth is preserved by wrapping this page in ProtectedRoute.
 import { Link } from 'react-router-dom';
 import BackButton from './BackButton';
 import { useLanguage } from '../i18n/LanguageContext';
