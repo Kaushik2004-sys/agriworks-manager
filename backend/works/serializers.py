@@ -121,9 +121,9 @@ class WorkSerializer(serializers.ModelSerializer):
         try:
             dec = Decimal(value)
         except Exception:
-            raise serializers.ValidationError('Amount cannot be negative.')
+            raise serializers.ValidationError('Amount must be greater than 0.')
         if value is None or dec <= 0:
-            raise serializers.ValidationError('Amount cannot be negative.')
+            raise serializers.ValidationError('Amount must be greater than 0.')
         return value
 
     def validate(self, attrs):
