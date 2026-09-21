@@ -49,8 +49,8 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
         db_status = 'connected'
-    except Exception as exc:
-        db_status = f'error: {exc}'
+    except Exception:
+        db_status = 'error'
 
     return Response({
         'project': 'AgriWorks Manager',
