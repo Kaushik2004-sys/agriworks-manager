@@ -152,7 +152,7 @@ export default function Farmers() {
   return (
     <div className="container py-4">
       <BackButton to="/" label="Back to Home" />
-      <BackButton to="/" nextTo="/works" />
+      <BackButton nextTo="/works" />
       <PageHeader
         title="Farmer Management"
         subtitle="Your farmer register — search, add, or update a farmer."
