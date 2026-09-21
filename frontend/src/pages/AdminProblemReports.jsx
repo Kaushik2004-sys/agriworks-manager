@@ -2,6 +2,7 @@
 // Lists all submitted reports, changeable status, delete, status filter.
 import { useEffect, useState } from 'react';
 import BackButton from '../components/BackButton';
+import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -13,6 +14,8 @@ export default function AdminProblemReports() {
   const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -40,13 +43,25 @@ export default function AdminProblemReports() {
     }
   }
 
+  // Same delete logic as before; only the confirmation UI follows the
+  // application pattern (accessible ConfirmDialog instead of
+  // window.confirm; backend call unchanged).
   async function handleDelete(id) {
-    if (!window.confirm(t('Delete this report?'))) return;
+    setPendingDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId == null) return;
+    setDeleting(true);
     try {
-      await deleteProblemReport(id);
-      setReports((prev) => prev.filter((r) => r.id !== id));
+      await deleteProblemReport(pendingDeleteId);
+      setReports((prev) => prev.filter((r) => r.id !== pendingDeleteId));
+      setPendingDeleteId(null);
     } catch {
       setError('Delete failed. Please try again.');
+      setPendingDeleteId(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -136,6 +151,16 @@ export default function AdminProblemReports() {
             </tbody>
           </table>
         </div>
+      )}
+      {pendingDeleteId != null && (
+        <ConfirmDialog
+          title="Delete this report?"
+          message="This will remove this report from your records."
+          confirmLabel="Delete"
+          busy={deleting}
+          onCancel={() => { if (!deleting) setPendingDeleteId(null); }}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   );
