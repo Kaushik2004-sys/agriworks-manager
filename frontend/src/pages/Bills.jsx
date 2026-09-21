@@ -339,7 +339,7 @@ export default function Bills() {
                   <td data-label={t('Total')}><span className="aw-money">₹{formatRupees(b.total_amount)}</span></td>
                   <td data-label={t('Paid')}>₹{formatRupees(b.paid_amount)}</td>
                   <td data-label={t('Pending')}><strong>₹{formatRupees(b.pending_amount)}</strong></td>
-                  <td data-label={t('Status')}><span className={statusBadgeClass(b.status)}>{statusIcon(b.status)}{t(b.status === 'Partial' ? 'Partially Paid' : b.status === 'Unpaid' ? 'Pending' : b.status)}</span></td>
+                  <td data-label={t('Status')}><span className={statusBadgeClass(b.status)}>{statusIcon(b.status)}{t(b.status)}</span></td>
                   <td data-label={t('Actions')} className="text-nowrap">
                     <Link className="btn btn-sm btn-success me-2" to={`/payments?bill=${b.id}`}>{t('💰 Pay')}</Link>
                     <span className="badge bg-secondary me-2" title={t('Generated bills are finalized and cannot be edited.')}>🔒 {t('Final')}</span>
