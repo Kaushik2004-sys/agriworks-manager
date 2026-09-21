@@ -6,6 +6,7 @@ import BackButton from '../components/BackButton';
 import StatIcon from '../components/StatIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { EXPENSE_TYPES, listExpenses } from '../services/expenses';
+import { formatRupees } from '../utils/formatRupees';
 
 export default function DashboardExpenses() {
   const { t } = useLanguage();
@@ -37,7 +38,7 @@ export default function DashboardExpenses() {
         <div className="col-6 col-md-4">
           <div className="card"><div className="card-body py-2">
             <small className="text-muted">{t('Total Expenses')}</small>
-            <div className="fw-bold fs-5">Rs {total}</div>
+            <div className="fw-bold fs-5">₹{formatRupees(total)}</div>
           </div></div>
         </div>
         <div className="col-6 col-md-4">
@@ -52,7 +53,7 @@ export default function DashboardExpenses() {
             <div className="small">
               {EXPENSE_TYPES.map((ty) => (
                 <span key={ty} className="badge bg-success me-1 mb-1">
-                  {t(ty)}: Rs {expenses.filter((e) => e.expense_type === ty).reduce((s, e) => s + Number(e.amount || 0), 0)}
+                  {t(ty)}: ₹{formatRupees(expenses.filter((e) => e.expense_type === ty).reduce((s, e) => s + Number(e.amount || 0), 0))}
                 </span>
               ))}
             </div>
@@ -81,7 +82,7 @@ export default function DashboardExpenses() {
                     <tr key={e.id}>
                       <td data-label={t('Type')}>{t(e.expense_type)}</td>
                       <td data-label={t('Date')}>{e.date}</td>
-                      <td data-label={t('Amount')}>Rs {e.amount}</td>
+                      <td data-label={t('Amount')}>₹{formatRupees(e.amount)}</td>
                       <td data-label={t('Description')}>{e.description || '—'}</td>
                     </tr>
                   ))}

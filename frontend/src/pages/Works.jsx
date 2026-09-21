@@ -10,6 +10,7 @@ import WorkTypeIcon, { workTypeIconName } from '../components/WorkTypeIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { WORK_TYPES, createWork, deleteWork, listWorks } from '../services/works';
+import { formatRupees } from '../utils/formatRupees';
 
 const emptyForm = { farmer: '', work_type: '', work_date: '', field_location: '', remark: '', work_description: '', area: '', amount: '', irrigation_hours: '', irrigation_minutes: '', hourly_rate: '', rate_per_acre: '' };
 
@@ -73,16 +74,6 @@ function isValidWholeTotal(value) {
   if (value === '' || value === null || value === undefined) return false;
   const n = Number(value);
   return Number.isFinite(n) && Number.isInteger(n) && n >= 1;
-}
-
-// Display stored amounts as whole rupees (1500, not 1500.00).
-// Non-whole legacy values are trimmed without adding decimals.
-function displayRupees(v) {
-  if (v === '' || v === null || v === undefined) return v;
-  const n = Number(v);
-  if (!Number.isFinite(n)) return v;
-  if (Number.isInteger(n)) return String(n);
-  return String(Math.round(n * 100) / 100);
 }
 
 export default function Works() {
@@ -543,7 +534,7 @@ export default function Works() {
                     placeholder="₹"
                   />
                   {isCalculated && calculatedTotal !== '' && (
-                    <div className="form-text">{t('Calculated automatically: ')}<strong className="aw-money">₹{calculatedTotal}</strong></div>
+                    <div className="form-text">{t('Calculated automatically: ')}<strong className="aw-money">₹{formatRupees(calculatedTotal)}</strong></div>
                   )}
                 </div>
                 </div>
@@ -590,7 +581,7 @@ export default function Works() {
                   <td data-label={t('Work Type')}><WorkTypeIcon type={w.work_type} />{t(w.work_type)}</td>
                   <td data-label={t('Date')}>{w.work_date}</td>
                   <td data-label={t('Area')}>{w.area || '—'}</td>
-                  <td data-label={t('Amount')}><span className="aw-money">₹{displayRupees(w.amount)}</span></td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{formatRupees(w.amount)}</span></td>
                   <td data-label={t('Actions')} className="text-nowrap">
                     <span className="badge bg-secondary me-2" title={t('Saved work records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
                     <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(w.id)}>{t('🗑️ Delete')}</button>

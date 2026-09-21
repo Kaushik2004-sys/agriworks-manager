@@ -8,6 +8,7 @@ import ErrorState from '../components/ErrorState';
 import PageHeader from '../components/PageHeader';
 import { useLanguage } from '../i18n/LanguageContext';
 import { EXPENSE_TYPES, createExpense, deleteExpense, listExpenses } from '../services/expenses';
+import { formatRupees } from '../utils/formatRupees';
 
 const EXPENSE_ICONS = { Diesel: '🛢️', Maintenance: '🔧', 'Driver Wages': '👷', Other: '🧾' };
 
@@ -173,7 +174,7 @@ export default function Expenses() {
 
       {error && <ErrorState message={error} onRetry={() => load(search.trim(), filterType)} />}
 
-      <div className="alert alert-secondary">{t('Total shown:')} <span className="aw-money">₹{total.toFixed(2)}</span> ({expenses.length} {t('records')})</div>
+      <div className="alert alert-secondary">{t('Total shown:')} <span className="aw-money">₹{formatRupees(total)}</span> ({expenses.length} {t('records')})</div>
 
       {showForm && (
         <div className="card mb-3 aw-form-block">
@@ -280,7 +281,7 @@ export default function Expenses() {
               {expenses.map((e) => (
                 <tr key={e.id}>
                   <td data-label={t('Type')}><span aria-hidden="true">{EXPENSE_ICONS[e.expense_type] || '💸'} </span><strong>{t(e.expense_type)}</strong></td>
-                  <td data-label={t('Amount')}><span className="aw-money">₹{e.amount}</span></td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{formatRupees(e.amount)}</span></td>
                   <td data-label={t('Date')}>{e.date}</td>
                   <td data-label={t('Description')}>{e.description || '—'}</td>
                   <td data-label={t('Actions')} className="text-nowrap">

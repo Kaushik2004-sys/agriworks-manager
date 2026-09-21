@@ -6,6 +6,7 @@ import StatIcon from '../components/StatIcon';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { getDashboard } from '../services/dashboard';
+import { formatRupees } from '../utils/formatRupees';
 
 // Simple rural-friendly card: ICON + TITLE + VALUE + SHORT DESCRIPTION.
 function StatCard({ emoji, label, value, desc, link, linkText }) {
@@ -84,10 +85,10 @@ export default function Dashboard() {
 
       <div className="row g-2 mb-3">
         <StatCard emoji="🚜" label={t('Work Records')} value={totals.works ?? '—'} desc={t('Total jobs done')} link="/dashboard/work-records" linkText={t('Work')} />
-        <StatCard emoji="💰" label={t('Total Income (billed)')} value={totals.income == null ? '—' : `₹${totals.income}`} desc={t('Billed so far')} link="/dashboard/income" linkText={t('Bills')} />
-        <StatCard emoji="✅" label={t('Payments Received')} value={totals.received == null ? '—' : `₹${totals.received}`} desc={t('Money collected')} link="/dashboard/payments" linkText={t('Payments')} />
-        <StatCard emoji="⏳" label={t('Pending Payments')} value={totals.pending == null ? '—' : `₹${totals.pending}`} desc={t('Still to collect')} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
-        <StatCard emoji="💸" label={t('Total Expenses')} value={totals.expenses == null ? '—' : `₹${totals.expenses}`} desc={t('Money spent')} link="/dashboard/expenses" linkText={t('Expenses')} />
+        <StatCard emoji="💰" label={t('Total Income (billed)')} value={totals.income == null ? '—' : `₹${formatRupees(totals.income)}`} desc={t('Billed so far')} link="/dashboard/income" linkText={t('Bills')} />
+        <StatCard emoji="✅" label={t('Payments Received')} value={totals.received == null ? '—' : `₹${formatRupees(totals.received)}`} desc={t('Money collected')} link="/dashboard/payments" linkText={t('Payments')} />
+        <StatCard emoji="⏳" label={t('Pending Payments')} value={totals.pending == null ? '—' : `₹${formatRupees(totals.pending)}`} desc={t('Still to collect')} link="/dashboard/pending-payments" linkText={t('Pending bills')} />
+        <StatCard emoji="💸" label={t('Total Expenses')} value={totals.expenses == null ? '—' : `₹${formatRupees(totals.expenses)}`} desc={t('Money spent')} link="/dashboard/expenses" linkText={t('Expenses')} />
         <StatCard emoji="👨‍🌾" label={t('Farmers')} value={totals.farmers ?? '—'} desc={t('Farmers in register')} link="/dashboard/farmers" linkText={t('Farmers')} />
       </div>
 
@@ -106,7 +107,7 @@ export default function Dashboard() {
                     <li key={w.id} className="list-group-item px-0 small">
                       <span className="text-success me-1 d-inline-flex align-middle"><StatIcon name="work" size={14} /></span>
                       <b>{w.farmer_name}</b> – {t(w.work_type)} ({w.work_date})<br />
-                      <span className="text-muted">Rs {w.amount}</span>
+                      <span className="text-muted">₹{formatRupees(w.amount)}</span>
                     </li>
                   ))}
                 </ul>
@@ -128,7 +129,7 @@ export default function Dashboard() {
                     <li key={p.id} className="list-group-item px-0 small">
                       <span className="text-success me-1 d-inline-flex align-middle"><StatIcon name="payment" size={14} /></span>
                       <b>{p.farmer_name}</b> – Bill #{p.bill_id} ({p.payment_date})<br />
-                      <span className="text-muted">{t(p.method)} Rs {p.amount}</span>
+                      <span className="text-muted">{t(p.method)} ₹{formatRupees(p.amount)}</span>
                     </li>
                   ))}
                 </ul>
@@ -150,7 +151,7 @@ export default function Dashboard() {
                     <li key={e.id} className="list-group-item px-0 small">
                       <span className="text-success me-1 d-inline-flex align-middle"><StatIcon name="expense" size={14} /></span>
                       <b>{t(e.expense_type)}</b> ({e.date})<br />
-                      <span className="text-muted">Rs {e.amount}</span>
+                      <span className="text-muted">₹{formatRupees(e.amount)}</span>
                     </li>
                   ))}
                 </ul>

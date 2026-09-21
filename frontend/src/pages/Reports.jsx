@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listFarmers } from '../services/farmers';
 import { REPORT_TYPES, getReport } from '../services/reports';
+import { formatRupees } from '../utils/formatRupees';
 
 function toCSV(rows) {
   if (!rows || rows.length === 0) return '';
@@ -41,6 +42,18 @@ const COLUMN_LABELS = {
   count: 'Count', total_area: 'Total Area', total_amount: 'Total Amount',
   total_pending: 'Total Pending',
 };
+
+// Monetary record columns rendered with ₹ + shared whole-rupee display.
+// Area/count/id/date columns stay bare on purpose (not money).
+const MONEY_COLUMNS = ['amount', 'hourly_rate', 'rate_per_acre', 'total', 'paid', 'pending', 'total_amount', 'total_pending'];
+const MONEY_SUMMARY_KEYS = [...MONEY_COLUMNS, 'income', 'received', 'expenses', 'profit_cash', 'profit_billed'];
+
+// Shared whole-rupee cell/summary display: ₹1500, never ₹1500.00.
+// Empty values stay empty (no bare ₹), non-money stays untouched.
+function moneyText(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  return `₹${formatRupees(value)}`;
+}
 
 export default function Reports() {
   const { t } = useLanguage();
@@ -265,22 +278,22 @@ export default function Reports() {
               <h5 className="card-title">{label}</h5>
               {type === 'performance' ? (
                 <div className="row g-2 small">
-                  <div className="col-6 col-md-3">{t('Income:')} <b>Rs {summary.income ?? '—'}</b></div>
-                  <div className="col-6 col-md-3">{t('Received:')} <b>Rs {summary.received ?? '—'}</b></div>
-                  <div className="col-6 col-md-3">{t('Pending:')} <b>Rs {summary.pending ?? '—'}</b></div>
-                  <div className="col-6 col-md-3">{t('Expenses:')} <b>Rs {summary.expenses ?? '—'}</b></div>
-                  <div className="col-6 col-md-3">{t('Profit (cash):')} <b>Rs {summary.profit_cash ?? '—'}</b></div>
-                  <div className="col-6 col-md-3">{t('Profit (billed):')} <b>Rs {summary.profit_billed ?? '—'}</b></div>
+                  <div className="col-6 col-md-3">{t('Income:')} <b>{summary.income == null ? '—' : `₹${formatRupees(summary.income)}`}</b></div>
+                  <div className="col-6 col-md-3">{t('Received:')} <b>{summary.received == null ? '—' : `₹${formatRupees(summary.received)}`}</b></div>
+                  <div className="col-6 col-md-3">{t('Pending:')} <b>{summary.pending == null ? '—' : `₹${formatRupees(summary.pending)}`}</b></div>
+                  <div className="col-6 col-md-3">{t('Expenses:')} <b>{summary.expenses == null ? '—' : `₹${formatRupees(summary.expenses)}`}</b></div>
+                  <div className="col-6 col-md-3">{t('Profit (cash):')} <b>{summary.profit_cash == null ? '—' : `₹${formatRupees(summary.profit_cash)}`}</b></div>
+                  <div className="col-6 col-md-3">{t('Profit (billed):')} <b>{summary.profit_billed == null ? '—' : `₹${formatRupees(summary.profit_billed)}`}</b></div>
                   <div className="col-12 mt-2">
-                    <b>{t('By work type:')}</b> {byWorkType.map((r) => `${t(r.work_type)} x${r.count} Rs${r.amount}`).join(' | ') || '—'}
+                    <b>{t('By work type:')}</b> {byWorkType.map((r) => `${t(r.work_type)} x${r.count} ₹${formatRupees(r.amount)}`).join(' | ') || '—'}
                   </div>
                   <div className="col-12">
-                    <b>{t('By expense type:')}</b> {byExpenseType.map((r) => `${t(r.expense_type)} x${r.count} Rs${r.amount}`).join(' | ') || '—'}
+                    <b>{t('By expense type:')}</b> {byExpenseType.map((r) => `${t(r.expense_type)} x${r.count} ₹${formatRupees(r.amount)}`).join(' | ') || '—'}
                   </div>
                 </div>
               ) : (
                 <div className="small text-muted">
-                  {Object.entries(summary).map(([k, v]) => `${t(COLUMN_LABELS[k] || k)}: ${v}`).join(' | ')}
+                  {Object.entries(summary).map(([k, v]) => `${t(COLUMN_LABELS[k] || k)}: ${MONEY_SUMMARY_KEYS.includes(k) ? moneyText(v) || v : v}`).join(' | ')}
                 </div>
               )}
             </div>
@@ -297,7 +310,10 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {records.map((r, i) => (
-                      <tr key={i}>{columns.map((c) => <td key={c} data-label={t(COLUMN_LABELS[c] || c)}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : String(r[c] ?? '')}</td>)}</tr>
+                      <tr key={i}>{columns.map((c) => {
+                        const cell = MONEY_COLUMNS.includes(c) ? moneyText(r[c]) || String(r[c] ?? '') : String(r[c] ?? '');
+                        return <td key={c} data-label={t(COLUMN_LABELS[c] || c)}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : cell}</td>;
+                      })}</tr>
                     ))}
                   </tbody>
                 </table>

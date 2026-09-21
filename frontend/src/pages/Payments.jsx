@@ -12,6 +12,7 @@ import { listBills } from '../services/bills';
 import { listFarmers } from '../services/farmers';
 import { listWorks } from '../services/works';
 import { PAYMENT_METHODS, createPayment, deletePayment, listPayments } from '../services/payments';
+import { formatRupees } from '../utils/formatRupees';
 
 export default function Payments() {
   const { t } = useLanguage();
@@ -56,8 +57,8 @@ export default function Payments() {
     const area = worksMap[b.work]?.area;
     const parts = [b.work_type || `Bill #${b.id}`, formatWorkDate(b.work_date)];
     if (area) parts.push(`${area} Acres`);
-    parts.push(`Total Rs ${b.total_amount}`);
-    parts.push(b.status === 'Paid' ? 'Paid' : `Pending Rs ${b.pending_amount}`);
+    parts.push(`Total ₹${formatRupees(b.total_amount)}`);
+    parts.push(b.status === 'Paid' ? 'Paid' : `Pending ₹${formatRupees(b.pending_amount)}`);
     return parts.filter(Boolean).join(' | ');
   }
 
@@ -238,7 +239,7 @@ export default function Payments() {
       return 'Payment amount must be a whole number of at least Rs 1 (no decimals).';
     }
     if (amt > maxAllowed + 0.001) {
-      return `Payment Rs ${form.amount} exceeds remaining Rs ${maxAllowed.toFixed(2)}.`;
+      return `Payment ₹${formatRupees(form.amount)} exceeds remaining ₹${formatRupees(maxAllowed)}.`;
     }
     return '';
   }
@@ -386,9 +387,9 @@ export default function Payments() {
         <div className="card mb-3 aw-form-block" aria-live="polite">
           <div className="card-body">
             <div className="row g-2 text-center">
-              <div className="col-6 col-md-3"><small className="text-muted">{t('Total Bill')}</small><div className="aw-money">₹{bill.total_amount}</div></div>
-              <div className="col-6 col-md-3"><small className="text-muted">{t('Paid')}</small><div className="aw-money">₹{bill.paid_amount}</div></div>
-              <div className="col-6 col-md-3"><small className="text-muted">{t('Remaining')}</small><div className="aw-money aw-money-big">₹{bill.pending_amount}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Total Bill')}</small><div className="aw-money">₹{formatRupees(bill.total_amount)}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Paid')}</small><div className="aw-money">₹{formatRupees(bill.paid_amount)}</div></div>
+              <div className="col-6 col-md-3"><small className="text-muted">{t('Remaining')}</small><div className="aw-money aw-money-big">₹{formatRupees(bill.pending_amount)}</div></div>
               <div className="col-6 col-md-3"><small className="text-muted">{t('Status')}</small><div><span className={bill.status === 'Paid' ? 'aw-badge aw-badge-paid' : bill.status === 'Partial' ? 'aw-badge aw-badge-partial' : 'aw-badge aw-badge-pending'}>{t(bill.status)}</span></div></div>
             </div>
           </div>
@@ -435,7 +436,7 @@ export default function Payments() {
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     placeholder="₹"
                   />
-                  <div className="form-text">{t('Remaining to pay: ')}<strong className="aw-money">₹{maxAllowed.toFixed(2)}</strong></div>
+                  <div className="form-text">{t('Remaining to pay: ')}<strong className="aw-money">₹{formatRupees(maxAllowed)}</strong></div>
                 </div>
               </div>
               <div className="mt-3 d-flex gap-2 flex-wrap">
@@ -481,7 +482,7 @@ export default function Payments() {
                 <tr key={p.id}>
                   <td data-label={t('Date')}>{p.payment_date}</td>
                   <td data-label={t('Method')}>{t(p.method)}</td>
-                  <td data-label={t('Amount')}><span className="aw-money">₹{p.amount}</span></td>
+                  <td data-label={t('Amount')}><span className="aw-money">₹{formatRupees(p.amount)}</span></td>
                   <td data-label={t('Actions')} className="text-nowrap">
                     <span className="badge bg-secondary me-2" title={t('Saved payment records are locked and cannot be edited.')}>🔒 {t('Locked')}</span>
                     <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(p.id)}>{t('🗑️ Delete')}</button>

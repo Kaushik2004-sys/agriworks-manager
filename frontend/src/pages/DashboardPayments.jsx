@@ -6,6 +6,7 @@ import BackButton from '../components/BackButton';
 import StatIcon from '../components/StatIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PAYMENT_METHODS, listPayments } from '../services/payments';
+import { formatRupees } from '../utils/formatRupees';
 
 export default function DashboardPayments() {
   const { t } = useLanguage();
@@ -37,7 +38,7 @@ export default function DashboardPayments() {
         <div className="col-6 col-md-4">
           <div className="card"><div className="card-body py-2">
             <small className="text-muted">{t('Received')}</small>
-            <div className="fw-bold fs-5">Rs {received}</div>
+            <div className="fw-bold fs-5">₹{formatRupees(received)}</div>
           </div></div>
         </div>
         <div className="col-6 col-md-4">
@@ -52,7 +53,7 @@ export default function DashboardPayments() {
             <div className="small">
               {PAYMENT_METHODS.map((m) => (
                 <span key={m} className="badge bg-success me-1 mb-1">
-                  {t(m)}: Rs {payments.filter((p) => p.method === m).reduce((s, p) => s + Number(p.amount || 0), 0)}
+                  {t(m)}: ₹{formatRupees(payments.filter((p) => p.method === m).reduce((s, p) => s + Number(p.amount || 0), 0))}
                 </span>
               ))}
             </div>
@@ -84,7 +85,7 @@ export default function DashboardPayments() {
                       <td data-label={t('Bill')}>#{p.bill_id ?? p.bill}</td>
                       <td data-label={t('Date')}>{p.payment_date}</td>
                       <td data-label={t('Method')}>{t(p.method)}</td>
-                      <td data-label={t('Amount')}>Rs {p.amount}</td>
+                      <td data-label={t('Amount')}>₹{formatRupees(p.amount)}</td>
                     </tr>
                   ))}
                 </tbody>

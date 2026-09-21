@@ -6,6 +6,7 @@ import BackButton from '../components/BackButton';
 import StatIcon from '../components/StatIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listWorks } from '../services/works';
+import { formatRupees } from '../utils/formatRupees';
 
 export default function DashboardWorks() {
   const { t } = useLanguage();
@@ -50,7 +51,7 @@ export default function DashboardWorks() {
         <div className="col-6 col-md-4">
           <div className="card"><div className="card-body py-2">
             <small className="text-muted">{t('Total Amount')}</small>
-            <div className="fw-bold fs-5">Rs {totalAmount}</div>
+            <div className="fw-bold fs-5">₹{formatRupees(totalAmount)}</div>
           </div></div>
         </div>
       </div>
@@ -79,7 +80,7 @@ export default function DashboardWorks() {
                       <td data-label={t('Work Type')}>{t(w.work_type)}</td>
                       <td data-label={t('Date')}>{w.work_date}</td>
                       <td data-label={t('Area')}>{w.area}</td>
-                      <td data-label={t('Amount')}>Rs {w.amount}</td>
+                      <td data-label={t('Amount')}>₹{formatRupees(w.amount)}</td>
                     </tr>
                   ))}
                 </tbody>

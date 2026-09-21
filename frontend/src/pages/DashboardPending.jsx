@@ -7,6 +7,7 @@ import BackButton from '../components/BackButton';
 import StatIcon from '../components/StatIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { listBills } from '../services/bills';
+import { formatRupees } from '../utils/formatRupees';
 
 export default function DashboardPending() {
   const { t } = useLanguage();
@@ -39,7 +40,7 @@ export default function DashboardPending() {
         <div className="col-6 col-md-6">
           <div className="card"><div className="card-body py-2">
             <small className="text-muted">{t('Total Pending')}</small>
-            <div className="fw-bold fs-5">Rs {pendingTotal}</div>
+            <div className="fw-bold fs-5">₹{formatRupees(pendingTotal)}</div>
           </div></div>
         </div>
         <div className="col-6 col-md-6">
@@ -73,9 +74,9 @@ export default function DashboardPending() {
                     <tr key={b.id}>
                       <td data-label={t('Farmer')}>{b.farmer_name || '—'}</td>
                       <td data-label={t('Bill Date')}>{b.bill_date}</td>
-                      <td data-label={t('Total')}>Rs {b.total_amount}</td>
-                      <td data-label={t('Paid')}>Rs {b.paid_amount}</td>
-                      <td data-label={t('Pending')}>Rs {b.pending_amount}</td>
+                      <td data-label={t('Total')}>₹{formatRupees(b.total_amount)}</td>
+                      <td data-label={t('Paid')}>₹{formatRupees(b.paid_amount)}</td>
+                      <td data-label={t('Pending')}>₹{formatRupees(b.pending_amount)}</td>
                       <td data-label={t('Status')}>{t(b.status)}</td>
                     </tr>
                   ))}

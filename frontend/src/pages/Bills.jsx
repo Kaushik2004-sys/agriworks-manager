@@ -12,6 +12,7 @@ import WorkTypeIcon from '../components/WorkTypeIcon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { createBill, deleteBill, listBills, listUnbilledWorks } from '../services/bills';
 import { listWorks } from '../services/works';
+import { formatRupees } from '../utils/formatRupees';
 
 const STATUS_OPTIONS = ['Unpaid', 'Partial', 'Paid'];
 
@@ -244,7 +245,7 @@ export default function Bills() {
                     <option value="">{t('Select unbilled work')}</option>
                     {unbilled.map((w) => (
                       <option key={w.id} value={w.id}>
-                        #{w.id} {w.farmer_name || ''} – {t(w.work_type)} ({w.work_date}) Rs {w.amount}
+                        #{w.id} {w.farmer_name || ''} – {t(w.work_type)} ({w.work_date}) ₹{formatRupees(w.amount)}
                       </option>
                     ))}
                   </select>
@@ -258,7 +259,7 @@ export default function Bills() {
                       {t('Farmer: ')}<b>{sel.farmer_name || sel.farmer || ''}</b>
                       {sel.farmer_village ? ` (${sel.farmer_village})` : ''} |
                       {t('Work: ')}<b>{t(sel.work_type || '')}</b> ({sel.work_date || ''}) |
-                      {t('Work amount: ')}<b>Rs {sel.amount || sel.total_amount || ''}</b>
+                      {t('Work amount: ')}<b>₹{formatRupees(sel.amount || sel.total_amount || '')}</b>
                     </div>
                   </div>
                 )}
@@ -277,7 +278,7 @@ export default function Bills() {
                   </div>
                 </div>
                 <div className="col-6">
-                  <label className="form-label">{t('Billed amount (Rs) *')} 🔒</label>
+                  <label className="form-label">{t('Billed amount (₹) *')} 🔒</label>
                   <input
                     type="number" step="0.01" min="0"
                     className="form-control"
@@ -335,9 +336,9 @@ export default function Bills() {
                   <td data-label={t('Farmer')}><strong>{b.farmer_name}</strong><br /><small className="text-muted">{b.farmer_village}</small></td>
                   <td data-label={t('Work')}><WorkTypeIcon type={b.work_type} />{t(b.work_type)}<br /><small className="text-muted">{b.work_date}</small></td>
                   <td data-label={t('Bill Date')}>{b.bill_date}</td>
-                  <td data-label={t('Total')}><span className="aw-money">₹{b.total_amount}</span></td>
-                  <td data-label={t('Paid')}>₹{b.paid_amount}</td>
-                  <td data-label={t('Pending')}><strong>₹{b.pending_amount}</strong></td>
+                  <td data-label={t('Total')}><span className="aw-money">₹{formatRupees(b.total_amount)}</span></td>
+                  <td data-label={t('Paid')}>₹{formatRupees(b.paid_amount)}</td>
+                  <td data-label={t('Pending')}><strong>₹{formatRupees(b.pending_amount)}</strong></td>
                   <td data-label={t('Status')}><span className={statusBadgeClass(b.status)}>{statusIcon(b.status)}{t(b.status === 'Partial' ? 'Partially Paid' : b.status === 'Unpaid' ? 'Pending' : b.status)}</span></td>
                   <td data-label={t('Actions')} className="text-nowrap">
                     <Link className="btn btn-sm btn-success me-2" to={`/payments?bill=${b.id}`}>{t('💰 Pay')}</Link>
