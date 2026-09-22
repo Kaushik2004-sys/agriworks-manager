@@ -36,6 +36,7 @@ export default function Signup() {
   const [touched, setTouched] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -235,14 +236,25 @@ export default function Signup() {
         <div className="row g-2">
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Password *')}</label>
-            <input
-              type="password"
-              className={fieldClass('password')}
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-              onBlur={() => touch('password')}
-              autoComplete="new-password"
-            />
+            <div className="input-group">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className={fieldClass('password')}
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+                onBlur={() => touch('password')}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={t(showPassword ? 'Hide' : 'Show')}
+                aria-pressed={showPassword}
+              >
+                {t(showPassword ? 'Hide' : 'Show')}
+              </button>
+            </div>
             {fieldFeedback('password')}
             <div className="form-text">{t(PASSWORD_HINT)}</div>
           </div>

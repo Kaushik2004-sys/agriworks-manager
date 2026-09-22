@@ -2,7 +2,7 @@
 // Shows the same logo asset as the navbar, centered above the content.
 // Sticks to the bottom via flex layout (never overlaps content) and wraps
 // cleanly on split-screen, tablet and mobile.
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -29,10 +29,13 @@ const INFO_LINKS = [
 export default function Footer() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const isSuperuser = !!user?.is_superuser;
   // Superusers never see operational links or Contact & Report Problem,
-  // on any page. Normal users always keep the full footer.
-  const showOperationalLinks = !isSuperuser;
+  // on any page. Normal users always keep the full footer, except the
+  // Login page, which shows no app-module navigation (those links would
+  // only bounce a guest back to Login).
+  const showOperationalLinks = !isSuperuser && pathname !== '/login';
   const infoLinks = !isSuperuser
     ? INFO_LINKS
     : INFO_LINKS.filter((l) => l.to !== '/contact-support');
