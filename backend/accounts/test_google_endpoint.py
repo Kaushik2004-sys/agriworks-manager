@@ -130,6 +130,26 @@ class GoogleAuthEndpointTests(APITestCase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(User.objects.count(), 0)
 
+    def test_new_identity_blank_mobile_rejected(self):
+        with _mock_claims(CLAIMS):
+            res = self.client.post(
+                URL,
+                {'credential': 'valid-token', 'mobile': '   '},
+                format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(User.objects.count(), 0)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
+
+    def test_new_identity_non_numeric_mobile_rejected(self):
+        with _mock_claims(CLAIMS):
+            res = self.client.post(
+                URL,
+                {'credential': 'valid-token', 'mobile': 'abcdefghij'},
+                format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(User.objects.count(), 0)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
+
     def test_new_identity_duplicate_mobile_rejected(self):
         _password_user(mobile='9123456780')
         with _mock_claims(CLAIMS):
