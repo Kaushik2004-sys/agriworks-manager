@@ -3,8 +3,9 @@
 // Company/Business Name (optional),
 // Email (required, unique, valid), Mobile (10 digits),
 // Password + Confirm Password (must match, hashed by Django backend).
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { INVALID_EMAIL_MESSAGE, isValidEmail } from '../utils/validateEmail';
@@ -29,7 +30,7 @@ function isValidCompanyName(v) {
 }
 
 export default function Signup() {
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
@@ -37,6 +38,15 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Google sign-up state: the GIS credential lives only in memory for
+  // this flow (never storage) and is cleared after use/cancel.
+  const [googleCredential, setGoogleCredential] = useState('');
+  const [showMobileStep, setShowMobileStep] = useState(false);
+  const [gMobile, setGMobile] = useState('');
+  const [gMobileError, setGMobileError] = useState('');
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const googleBusyRef = useRef(false);
+  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -152,6 +162,60 @@ export default function Signup() {
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Google sign-up: keep the credential in memory, collect the required
+  // mobile number first, then authenticate once with credential + mobile.
+  function handleGoogleCredential(credential) {
+    if (googleBusyRef.current || !credential) return;
+    setError('');
+    setGMobileError('');
+    setGMobile(form.mobile);
+    setGoogleCredential(credential);
+    setShowMobileStep(true);
+  }
+
+  function cancelGoogleSignup() {
+    if (googleBusy) return;
+    setGoogleCredential('');
+    setShowMobileStep(false);
+    setGMobileError('');
+  }
+
+  async function handleGoogleMobileSubmit(e) {
+    e.preventDefault();
+    if (googleBusyRef.current) return;
+    const mobile = (gMobile || '').trim();
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setGMobileError('Mobile Number must be 10 digits.');
+      return;
+    }
+    googleBusyRef.current = true;
+    setGoogleBusy(true);
+    setGMobileError('');
+    setError('');
+    try {
+      await googleLogin(googleCredential, mobile);
+      sessionStorage.setItem('aw_post_login', '1');
+      navigate('/', { replace: true });
+    } catch (err) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      let msg = '';
+      if (typeof data?.error === 'string' && data.error
+        && !(status === 409 && data?.code === 'google_not_linked')) msg = data.error;
+      if (!msg) {
+        if (status === 401) msg = 'Invalid Google credential.';
+        else if (status === 503) msg = 'Google sign-in is temporarily unavailable. Please try again later.';
+        else if (status === 409) msg = 'This Google account is not linked to an AgriWorks account. Please log in with your password first.';
+      }
+      setShowMobileStep(false);
+      setError(msg ? String(msg) : 'Something went wrong. Please try again.');
+    } finally {
+      setGoogleCredential('');
+      googleBusyRef.current = false;
+      setGoogleBusy(false);
     }
   }
 
@@ -271,10 +335,52 @@ export default function Signup() {
             {fieldFeedback('confirm_password')}
           </div>
         </div>
-        <button className="btn btn-success w-100" disabled={busy} type="submit">
-          {busy ? t('Creating account...') : t('Create Account')}
-        </button>
+      <button className="btn btn-success w-100" disabled={busy} type="submit">
+        {busy ? t('Creating account...') : t('Create Account')}
+      </button>
       </form>
+
+      {googleClientId && !showMobileStep && (
+        <>
+          <div className="d-flex align-items-center gap-2 my-3" aria-hidden="true">
+            <hr className="flex-grow-1 my-0" />
+            <span className="text-muted small">{t('or')}</span>
+            <hr className="flex-grow-1 my-0" />
+          </div>
+          <GoogleSignInButton text="continue_with" onCredential={handleGoogleCredential} disabled={googleBusy || busy} />
+        </>
+      )}
+      {googleClientId && showMobileStep && (
+        <div className="card mt-3">
+          <div className="card-body">
+            <h6 className="fw-bold mb-2">{t('Complete Google signup')}</h6>
+            <form onSubmit={handleGoogleMobileSubmit}>
+              <label className="form-label">{t('Mobile Number *')}</label>
+              <div className="input-group">
+                <span className="input-group-text" aria-hidden="true">+91</span>
+                <input
+                  value={gMobile}
+                  onChange={(e) => setGMobile(e.target.value)}
+                  maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder={t('Enter 10-digit mobile number')}
+                  aria-label={t('Mobile Number *')}
+                />
+              </div>
+              {gMobileError && <div className="text-danger small mt-1">{t(gMobileError)}</div>}
+              <div className="d-flex gap-2 mt-3">
+                <button className="btn btn-success flex-grow-1" type="submit" disabled={googleBusy}>
+                  {t('Continue')}
+                </button>
+                <button className="btn btn-outline-secondary" type="button" onClick={cancelGoogleSignup} disabled={googleBusy}>
+                  {t('Cancel')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <p className="text-center mt-3 mb-0">
         {t('Already have an account? ')}<Link to="/login" replace>{t('Login')}</Link>

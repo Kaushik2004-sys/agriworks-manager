@@ -104,6 +104,15 @@ export async function registerUser(data) {
   return res.data; // { token, username, email, profile, message }
 }
 
+// Google authentication (GIS ID token verified server-side; the
+// backend remains the sole authority for Google identity and returns
+// the normal { token, username, email } session shape).
+export async function googleAuthUser(credential, mobile) {
+  const payload = mobile ? { credential, mobile } : { credential };
+  const res = await api.post('/auth/google/', payload);
+  return res.data;
+}
+
 export async function requestPasswordReset(email) {
   const res = await api.post('/password-reset/request/', { email });
   return res.data;
