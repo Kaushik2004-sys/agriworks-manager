@@ -222,6 +222,13 @@ CORS_ALLOWED_ORIGINS = _cors_raw
 # Auth update: frontend URL used to build password-reset links.
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+# Google Login (Phase 1): OAuth/Web Client ID used to verify Google
+# Identity Services ID tokens server-side (audience check). Empty by
+# default; the Google verification service fails safely with
+# ImproperlyConfigured when it is unset, so existing password
+# authentication is never affected by a missing value.
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+
 # Email: console backend in DEBUG when no backend is configured, so local
 # password-reset testing works without SMTP.
 # M16.6: production uses the SMTP backend and all SMTP parameters come from
