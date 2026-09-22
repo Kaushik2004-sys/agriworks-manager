@@ -8,6 +8,3 @@ mysqlclient==2.2.8
 python-dotenv==1.2.3
 gunicorn==26.2.0
 whitenoise==6.12.0
-# Phase 1 Google Login: server-side Google ID-token verification only.
-google-auth==2.58.0
-requests==2.34.2

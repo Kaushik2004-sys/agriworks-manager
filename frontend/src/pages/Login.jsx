@@ -1,9 +1,8 @@
 // Login page: Email or Registered Mobile Number + Password
 // (existing email logins still work). Links to Create New Account and
 // Forgot Password.
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -40,7 +39,7 @@ function LockIcon() {
 }
 
 export default function Login() {
-  const { login, refreshUser, googleLogin } = useAuth();
+  const { login, refreshUser } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
@@ -48,9 +47,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
-  const googleBusyRef = useRef(false);
-  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -105,42 +101,6 @@ export default function Login() {
       setError(msg ? String(msg) : 'Login failed. Check backend connection.');
     } finally {
       setBusy(false);
-    }
-  }
-
-  // Google sign-in: the GIS credential goes straight to the backend,
-  // which verifies it and returns the normal session. From storage on,
-  // this is identical to password login (same redirect/admin routing).
-  async function handleGoogleCredential(credential) {
-    if (googleBusyRef.current) return;
-    googleBusyRef.current = true;
-    setGoogleBusy(true);
-    setError('');
-    try {
-      await googleLogin(credential);
-      let isAdmin = false;
-      try {
-        const me = await refreshUser();
-        isAdmin = !!me?.is_superuser;
-      } catch {
-        isAdmin = false;
-      }
-      sessionStorage.setItem('aw_post_login', '1');
-      navigate(isAdmin ? '/admin/dashboard' : '/', { replace: true });
-    } catch (err) {
-      const status = err.response?.status;
-      const data = err.response?.data;
-      let msg = '';
-      if (typeof data?.error === 'string' && data.error) msg = data.error;
-      if (!msg) {
-        if (status === 401) msg = 'Invalid Google credential.';
-        else if (status === 503) msg = 'Google sign-in is temporarily unavailable. Please try again later.';
-        else if (status === 409 && data?.code === 'google_not_linked') msg = 'This Google account is not linked to an AgriWorks account. Please log in with your password first.';
-      }
-      setError(msg ? String(msg) : 'Something went wrong. Please try again.');
-    } finally {
-      googleBusyRef.current = false;
-      setGoogleBusy(false);
     }
   }
 
@@ -199,17 +159,6 @@ export default function Login() {
           {busy ? t('Logging in...') : t('Login')}
         </button>
       </form>
-
-      {googleClientId && (
-        <>
-          <div className="d-flex align-items-center gap-2 my-3" aria-hidden="true">
-            <hr className="flex-grow-1 my-0" />
-            <span className="text-muted small">{t('or')}</span>
-            <hr className="flex-grow-1 my-0" />
-          </div>
-          <GoogleSignInButton text="signin_with" onCredential={handleGoogleCredential} disabled={googleBusy || busy} />
-        </>
-      )}
 
       <div className="d-flex justify-content-between flex-wrap gap-2 mt-3">
         {/* Auth-to-auth moves replace so at most one auth page ever sits in history. */}

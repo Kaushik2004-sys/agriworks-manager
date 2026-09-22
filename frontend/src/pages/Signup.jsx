@@ -5,7 +5,6 @@
 // Password + Confirm Password (must match, hashed by Django backend).
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { INVALID_EMAIL_MESSAGE, isValidEmail } from '../utils/validateEmail';
@@ -30,7 +29,7 @@ function isValidCompanyName(v) {
 }
 
 export default function Signup() {
-  const { register, googleLogin } = useAuth();
+  const { register } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
@@ -38,27 +37,6 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Google sign-up state: the GIS credential lives only in memory for
-  // this flow (never storage) and is cleared when leaving Google mode.
-  const [googleCredential, setGoogleCredential] = useState('');
-  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
-
-  // Prefill-only decoding of the GIS ID token for form display. These
-  // claims are never trusted for authentication - the backend verifies
-  // the credential and remains the sole authority for Google identity.
-  function googlePrefill(credential) {
-    try {
-      const parts = String(credential).split('.');
-      if (parts.length !== 3) return {};
-      const binary = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
-      const json = JSON.parse(
-        new TextDecoder().decode(
-          Uint8Array.from(binary, (c) => c.charCodeAt(0))));
-      return json && typeof json === 'object' ? json : {};
-    } catch {
-      return {};
-    }
-  }
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -145,43 +123,22 @@ export default function Signup() {
     }
     setBusy(true);
     try {
-      if (googleCredential) {
-        // Google signup uses the same validated form: names were
-        // prefilled, mobile/password are required as usual, and the
-        // account email always comes from the verified Google token.
-        await googleLogin(googleCredential, form.mobile.trim(), {
-          full_name: form.full_name.trim(),
-          last_name: form.last_name.trim(),
-          password: form.password,
-          confirm_password: form.confirm_password,
-        });
-      } else {
-        await register({
-          full_name: form.full_name.trim(),
-          last_name: form.last_name.trim(),
-          company_name: form.company_name.trim(), // optional - may be empty
-          email: form.email.trim(),
-          mobile: form.mobile.trim(),
-          password: form.password,
-          confirm_password: form.confirm_password,
-        });
-      }
+      await register({
+        full_name: form.full_name.trim(),
+        last_name: form.last_name.trim(),
+        company_name: form.company_name.trim(), // optional - may be empty
+        email: form.email.trim(),
+        mobile: form.mobile.trim(),
+        password: form.password,
+        confirm_password: form.confirm_password,
+      });
       // Replace register in history and arm post-login collapse of any
       // older pre-login entries (see CollapseStaleHistory in App.jsx).
       sessionStorage.setItem('aw_post_login', '1');
       navigate('/', { replace: true });
     } catch (err) {
-      const status = err.response?.status;
       const data = err.response?.data;
-      if (googleCredential && status === 409 && data?.code === 'google_not_linked') {
-        // A password account owns this email: leave Google mode so the
-        // user can log in with the password instead. Never auto-link.
-        setGoogleCredential('');
-        setError('This Google account is not linked to an AgriWorks account. Please log in with your password first.');
-      } else if (googleCredential && status === 401) {
-        setGoogleCredential('');
-        setError('Invalid Google credential.');
-      } else if (data && typeof data === 'object') {
+      if (data && typeof data === 'object') {
         const firstKey = Object.keys(data)[0];
         const val = data[firstKey];
         const firstMsg = Array.isArray(val) ? val[0] : String(val);
@@ -196,36 +153,6 @@ export default function Signup() {
     } finally {
       setBusy(false);
     }
-  }
-
-  // Google sign-up: prefill the normal registration form from the
-  // verified Google profile (given/family/email) and keep the
-  // credential in memory for Create Account. Names stay editable and
-  // go through the same validation; email is locked because the
-  // account must use the verified Google email.
-  function handleGoogleCredential(credential) {
-    if (!credential || busy) return;
-    setError('');
-    const claims = googlePrefill(credential);
-    const given = (claims.given_name || '').trim();
-    const family = (claims.family_name || '').trim();
-    const email = (claims.email || '').trim();
-    const fullName = `${given} ${family}`.trim();
-    setForm((f) => ({
-      ...f,
-      full_name: fullName || f.full_name,
-      last_name: family || f.last_name,
-      email: email || f.email,
-    }));
-    setTouched((prev) => ({ ...prev, full_name: true, last_name: true, email: true }));
-    setGoogleCredential(credential);
-  }
-
-  // Leave Google mode without clearing what the user typed; the email
-  // field becomes editable again for normal manual signup.
-  function exitGoogleMode() {
-    if (busy) return;
-    setGoogleCredential('');
   }
 
   return (
@@ -283,17 +210,8 @@ export default function Signup() {
               onChange={(e) => set('email', e.target.value)}
               onBlur={() => touch('email')}
               autoComplete="email"
-              readOnly={!!googleCredential}
-              title={googleCredential ? t('Verified Google email - used for your account.') : undefined}
             />
             {fieldFeedback('email')}
-            {googleCredential && (
-              <div className="mt-1">
-                <button type="button" className="btn btn-link btn-sm p-0" onClick={exitGoogleMode}>
-                  {t('Use manual signup instead')}
-                </button>
-              </div>
-            )}
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Mobile Number *')}</label>
@@ -357,17 +275,6 @@ export default function Signup() {
         {busy ? t('Creating account...') : t('Create Account')}
       </button>
       </form>
-
-      {googleClientId && (
-        <>
-          <div className="d-flex align-items-center gap-2 my-3" aria-hidden="true">
-            <hr className="flex-grow-1 my-0" />
-            <span className="text-muted small">{t('or')}</span>
-            <hr className="flex-grow-1 my-0" />
-          </div>
-          <GoogleSignInButton text="continue_with" onCredential={handleGoogleCredential} disabled={busy} />
-        </>
-      )}
 
       <p className="text-center mt-3 mb-0">
         {t('Already have an account? ')}<Link to="/login" replace>{t('Login')}</Link>

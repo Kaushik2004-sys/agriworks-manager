@@ -1,7 +1,7 @@
 // Phase 2: Auth state shared across the app.
 // Stores token in localStorage so login survives page refresh.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import api, { changePassword as apiChangePassword, getCurrentUser, getProfile, googleAuthUser, loginUser, registerUser, updateProfile as apiUpdateProfile } from '../services/api';
+import api, { changePassword as apiChangePassword, getCurrentUser, getProfile, loginUser, registerUser, updateProfile as apiUpdateProfile } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -188,17 +188,6 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  // Google sign-in/sign-up: the backend verifies the GIS credential and
-  // returns the normal session shape, so storage, heartbeat, guards and
-  // logout all behave exactly like password login from here on.
-  async function googleLogin(credential, mobile, extra) {
-    const data = await googleAuthUser(credential, mobile, extra);
-    localStorage.setItem('agriworks_token', data.token);
-    setToken(data.token);
-    setUser({ username: data.username, email: data.email });
-    return data;
-  }
-
   async function logout() {
     // Clear the local session FIRST so Back pressed mid-logout can never
     // restore a usable authenticated page; then invalidate the token
@@ -247,7 +236,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, authError, revalidate: (opts) => verifySession(opts), login, register, googleLogin, logout, refreshUser, updateProfile, changePassword, loadProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, authError, revalidate: (opts) => verifySession(opts), login, register, logout, refreshUser, updateProfile, changePassword, loadProfile }}>
       {children}
     </AuthContext.Provider>
   );
