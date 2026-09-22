@@ -716,32 +716,6 @@ textarea:focus-visible {
   box-shadow: 0 2px 8px rgba(27, 67, 50, 0.08);
 }
 
-/* --- Login page informational links: dedicated secondary section ---
-   Sits below the auth card, visually separated by spacing + divider so
-   the form stays dominant. Centered, wraps naturally on narrow screens
-   (never forced onto one line, no horizontal scroll). Muted small
-   links with roomy line-height keep touch targets comfortable. */
-.aw-login-info {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--aw-card-border);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.2rem 1rem;
-}
-.aw-login-info a {
-  color: var(--aw-text-soft);
-  font-size: 0.85rem;
-  line-height: 1.9;
-  text-decoration: none;
-  overflow-wrap: break-word;
-}
-.aw-login-info a:hover {
-  color: var(--aw-forest);
-  text-decoration: underline;
-}
-
 .aw-brand-row {
   display: flex;
   align-items: center;
@@ -935,14 +909,20 @@ textarea:focus-visible {
   }
 }
 
-/* --- Footer information links: one horizontal line on desktop ---
-   The seven info links need near-full footer width, so they live in
-   their own full-width row (not inside the half-width column). Below
-   desktop they keep the existing wrapping behavior to avoid any
-   horizontal overflow on tablet/mobile. */
-@media (min-width: 992px) {
-  .d-flex.footer-info-links {
-    flex-wrap: nowrap;
+/* --- Footer information links: clean horizontal row that wraps ---
+   One row when width allows (desktop), natural wrapping on
+   tablet/mobile: never forced onto a single line (avoids horizontal
+   overflow with long translations), roomy line-height keeps links
+   readable and tappable, long labels wrap cleanly on small screens. */
+.footer-info-links {
+  row-gap: 0.5rem;
+  line-height: 1.8;
+  max-width: 100%;
+}
+@media (max-width: 767.98px) {
+  .footer-info-links .text-nowrap {
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 }
 
