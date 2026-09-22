@@ -3,7 +3,7 @@
 // Company/Business Name (optional),
 // Email (required, unique, valid), Mobile (10 digits),
 // Password + Confirm Password (must match, hashed by Django backend).
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
@@ -39,14 +39,26 @@ export default function Signup() {
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // Google sign-up state: the GIS credential lives only in memory for
-  // this flow (never storage) and is cleared after use/cancel.
+  // this flow (never storage) and is cleared when leaving Google mode.
   const [googleCredential, setGoogleCredential] = useState('');
-  const [showMobileStep, setShowMobileStep] = useState(false);
-  const [gMobile, setGMobile] = useState('');
-  const [gMobileError, setGMobileError] = useState('');
-  const [googleBusy, setGoogleBusy] = useState(false);
-  const googleBusyRef = useRef(false);
   const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+
+  // Prefill-only decoding of the GIS ID token for form display. These
+  // claims are never trusted for authentication - the backend verifies
+  // the credential and remains the sole authority for Google identity.
+  function googlePrefill(credential) {
+    try {
+      const parts = String(credential).split('.');
+      if (parts.length !== 3) return {};
+      const binary = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+      const json = JSON.parse(
+        new TextDecoder().decode(
+          Uint8Array.from(binary, (c) => c.charCodeAt(0))));
+      return json && typeof json === 'object' ? json : {};
+    } catch {
+      return {};
+    }
+  }
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -133,22 +145,43 @@ export default function Signup() {
     }
     setBusy(true);
     try {
-      await register({
-        full_name: form.full_name.trim(),
-        last_name: form.last_name.trim(),
-        company_name: form.company_name.trim(), // optional - may be empty
-        email: form.email.trim(),
-        mobile: form.mobile.trim(),
-        password: form.password,
-        confirm_password: form.confirm_password,
-      });
+      if (googleCredential) {
+        // Google signup uses the same validated form: names were
+        // prefilled, mobile/password are required as usual, and the
+        // account email always comes from the verified Google token.
+        await googleLogin(googleCredential, form.mobile.trim(), {
+          full_name: form.full_name.trim(),
+          last_name: form.last_name.trim(),
+          password: form.password,
+          confirm_password: form.confirm_password,
+        });
+      } else {
+        await register({
+          full_name: form.full_name.trim(),
+          last_name: form.last_name.trim(),
+          company_name: form.company_name.trim(), // optional - may be empty
+          email: form.email.trim(),
+          mobile: form.mobile.trim(),
+          password: form.password,
+          confirm_password: form.confirm_password,
+        });
+      }
       // Replace register in history and arm post-login collapse of any
       // older pre-login entries (see CollapseStaleHistory in App.jsx).
       sessionStorage.setItem('aw_post_login', '1');
       navigate('/', { replace: true });
     } catch (err) {
+      const status = err.response?.status;
       const data = err.response?.data;
-      if (data && typeof data === 'object') {
+      if (googleCredential && status === 409 && data?.code === 'google_not_linked') {
+        // A password account owns this email: leave Google mode so the
+        // user can log in with the password instead. Never auto-link.
+        setGoogleCredential('');
+        setError('This Google account is not linked to an AgriWorks account. Please log in with your password first.');
+      } else if (googleCredential && status === 401) {
+        setGoogleCredential('');
+        setError('Invalid Google credential.');
+      } else if (data && typeof data === 'object') {
         const firstKey = Object.keys(data)[0];
         const val = data[firstKey];
         const firstMsg = Array.isArray(val) ? val[0] : String(val);
@@ -165,58 +198,34 @@ export default function Signup() {
     }
   }
 
-  // Google sign-up: keep the credential in memory, collect the required
-  // mobile number first, then authenticate once with credential + mobile.
+  // Google sign-up: prefill the normal registration form from the
+  // verified Google profile (given/family/email) and keep the
+  // credential in memory for Create Account. Names stay editable and
+  // go through the same validation; email is locked because the
+  // account must use the verified Google email.
   function handleGoogleCredential(credential) {
-    if (googleBusyRef.current || !credential) return;
+    if (!credential || busy) return;
     setError('');
-    setGMobileError('');
-    setGMobile(form.mobile);
+    const claims = googlePrefill(credential);
+    const given = (claims.given_name || '').trim();
+    const family = (claims.family_name || '').trim();
+    const email = (claims.email || '').trim();
+    const fullName = `${given} ${family}`.trim();
+    setForm((f) => ({
+      ...f,
+      full_name: fullName || f.full_name,
+      last_name: family || f.last_name,
+      email: email || f.email,
+    }));
+    setTouched((prev) => ({ ...prev, full_name: true, last_name: true, email: true }));
     setGoogleCredential(credential);
-    setShowMobileStep(true);
   }
 
-  function cancelGoogleSignup() {
-    if (googleBusy) return;
+  // Leave Google mode without clearing what the user typed; the email
+  // field becomes editable again for normal manual signup.
+  function exitGoogleMode() {
+    if (busy) return;
     setGoogleCredential('');
-    setShowMobileStep(false);
-    setGMobileError('');
-  }
-
-  async function handleGoogleMobileSubmit(e) {
-    e.preventDefault();
-    if (googleBusyRef.current) return;
-    const mobile = (gMobile || '').trim();
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
-      setGMobileError('Mobile Number must be 10 digits.');
-      return;
-    }
-    googleBusyRef.current = true;
-    setGoogleBusy(true);
-    setGMobileError('');
-    setError('');
-    try {
-      await googleLogin(googleCredential, mobile);
-      sessionStorage.setItem('aw_post_login', '1');
-      navigate('/', { replace: true });
-    } catch (err) {
-      const status = err.response?.status;
-      const data = err.response?.data;
-      let msg = '';
-      if (typeof data?.error === 'string' && data.error
-        && !(status === 409 && data?.code === 'google_not_linked')) msg = data.error;
-      if (!msg) {
-        if (status === 401) msg = 'Invalid Google credential.';
-        else if (status === 503) msg = 'Google sign-in is temporarily unavailable. Please try again later.';
-        else if (status === 409) msg = 'This Google account is not linked to an AgriWorks account. Please log in with your password first.';
-      }
-      setShowMobileStep(false);
-      setError(msg ? String(msg) : 'Something went wrong. Please try again.');
-    } finally {
-      setGoogleCredential('');
-      googleBusyRef.current = false;
-      setGoogleBusy(false);
-    }
   }
 
   return (
@@ -274,8 +283,17 @@ export default function Signup() {
               onChange={(e) => set('email', e.target.value)}
               onBlur={() => touch('email')}
               autoComplete="email"
+              readOnly={!!googleCredential}
+              title={googleCredential ? t('Verified Google email - used for your account.') : undefined}
             />
             {fieldFeedback('email')}
+            {googleCredential && (
+              <div className="mt-1">
+                <button type="button" className="btn btn-link btn-sm p-0" onClick={exitGoogleMode}>
+                  {t('Use manual signup instead')}
+                </button>
+              </div>
+            )}
           </div>
           <div className="col-12 col-md-6 mb-3">
             <label className="form-label">{t('Mobile Number *')}</label>
@@ -340,46 +358,15 @@ export default function Signup() {
       </button>
       </form>
 
-      {googleClientId && !showMobileStep && (
+      {googleClientId && (
         <>
           <div className="d-flex align-items-center gap-2 my-3" aria-hidden="true">
             <hr className="flex-grow-1 my-0" />
             <span className="text-muted small">{t('or')}</span>
             <hr className="flex-grow-1 my-0" />
           </div>
-          <GoogleSignInButton text="continue_with" onCredential={handleGoogleCredential} disabled={googleBusy || busy} />
+          <GoogleSignInButton text="continue_with" onCredential={handleGoogleCredential} disabled={busy} />
         </>
-      )}
-      {googleClientId && showMobileStep && (
-        <div className="card mt-3">
-          <div className="card-body">
-            <h6 className="fw-bold mb-2">{t('Complete Google signup')}</h6>
-            <form onSubmit={handleGoogleMobileSubmit}>
-              <label className="form-label">{t('Mobile Number *')}</label>
-              <div className="input-group">
-                <span className="input-group-text" aria-hidden="true">+91</span>
-                <input
-                  value={gMobile}
-                  onChange={(e) => setGMobile(e.target.value)}
-                  maxLength={10}
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  placeholder={t('Enter 10-digit mobile number')}
-                  aria-label={t('Mobile Number *')}
-                />
-              </div>
-              {gMobileError && <div className="text-danger small mt-1">{t(gMobileError)}</div>}
-              <div className="d-flex gap-2 mt-3">
-                <button className="btn btn-success flex-grow-1" type="submit" disabled={googleBusy}>
-                  {t('Continue')}
-                </button>
-                <button className="btn btn-outline-secondary" type="button" onClick={cancelGoogleSignup} disabled={googleBusy}>
-                  {t('Cancel')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       <p className="text-center mt-3 mb-0">

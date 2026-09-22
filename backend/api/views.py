@@ -155,15 +155,19 @@ def login_view(request):
     })
 
 
-def _create_google_user(email, name, mobile):
-    """Create a password-less user + profile for a verified Google identity.
+def _create_google_user(email, name, mobile, password=None,
+                        full_name=None, last_name=None):
+    """Create a password-less (or password-set) user + profile.
 
     Username follows the existing registration convention (email prefix,
-    sanitized, suffixed until unique). The account gets an unusable
-    password (password login stays impossible), blank names fall back to
-    safe defaults, and no staff/superuser flags are ever set. Callers
-    must run this inside the same transaction that creates the
-    GoogleAccount link so concurrent requests stay exactly-once.
+    sanitized, suffixed until unique). Explicit form names win when
+    provided (already validated by the caller); otherwise the verified
+    Google name is split into full/last names. A supplied password is
+    hashed with set_password(); without one the account gets an unusable
+    password so password login stays impossible. No staff/superuser
+    flags are ever set. Callers must run this inside the same
+    transaction that creates the GoogleAccount link so concurrent
+    requests stay exactly-once.
     """
     import re
 
@@ -177,13 +181,20 @@ def _create_google_user(email, name, mobile):
     while User.objects.filter(username__iexact=username).exists():
         counter += 1
         username = f'{base}{counter}'
-    full_name = (name or '').strip()[:150] or base
+    token_name = (name or '').strip()
+    resolved_full = (full_name or '').strip() or token_name
+    resolved_last = (last_name or '').strip()
+    if not resolved_last and token_name:
+        resolved_last = token_name.split()[-1]
     user = User(username=username, email=email,
-                first_name=full_name[:30], last_name='')
-    user.set_unusable_password()
+                first_name=resolved_full[:30], last_name=resolved_last)
+    if password:
+        user.set_password(password)
+    else:
+        user.set_unusable_password()
     user.save()
     UserProfile.objects.create(
-        user=user, full_name=full_name, company_name='', mobile=mobile)
+        user=user, full_name=resolved_full, company_name='', mobile=mobile)
     return user
 
 
@@ -269,6 +280,80 @@ def google_auth_view(request):
                  'code': 'google_not_linked'},
                 status=status.HTTP_409_CONFLICT,
             )
+        # Optional signup-form fields (Google signup posts the normal
+        # registration data alongside the credential). Names fall back to
+        # the verified Google name; a supplied password must pass the
+        # existing registration rules. Absent entirely, the legacy
+        # mobile-only path below still creates a password-less account.
+        from accounts.validators import (
+            is_valid_full_name,
+            is_valid_last_name,
+            password_error,
+        )
+
+        def _str(value):
+            return value.strip() if isinstance(value, str) else ''
+
+        token_name = (identity.get('name', '') or '').strip()
+        full_name = _str(data.get('full_name')) or token_name
+        last_name = _str(data.get('last_name'))
+        if not last_name and token_name:
+            last_name = token_name.split()[-1]
+        if not full_name:
+            return Response(
+                {'error': 'Full Name is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(full_name) > 150:
+            return Response(
+                {'error': 'Full Name is too long.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not is_valid_full_name(full_name):
+            return Response(
+                {'error': 'Full Name must contain only letters with '
+                          'single spaces between words.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not last_name:
+            return Response(
+                {'error': 'Last Name is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(last_name) > 150:
+            return Response(
+                {'error': 'Last Name is too long.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not is_valid_last_name(last_name):
+            return Response(
+                {'error': 'Last Name must contain only letters without '
+                          'spaces.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        raw_password = data.get('password')
+        raw_confirm = data.get('confirm_password')
+        raw_password = raw_password if isinstance(raw_password, str) else ''
+        raw_confirm = raw_confirm if isinstance(raw_confirm, str) else ''
+        account_password = None
+        if raw_password or raw_confirm:
+            if not raw_password:
+                return Response(
+                    {'error': 'Password is required.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            pw_error = password_error(raw_password)
+            if pw_error:
+                return Response(
+                    {'error': pw_error},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if raw_password != raw_confirm:
+                return Response(
+                    {'error': 'Passwords do not match.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            account_password = raw_password
         try:
             with transaction.atomic():
                 existing = GoogleAccount.objects.select_related(
@@ -277,7 +362,9 @@ def google_auth_view(request):
                     user = existing.user
                 else:
                     user = _create_google_user(
-                        email, identity.get('name', ''), mobile)
+                        email, identity.get('name', ''), mobile,
+                        password=account_password,
+                        full_name=full_name, last_name=last_name)
                     GoogleAccount.objects.create(
                         user=user, sub=sub, email=email)
                     created = True

@@ -231,3 +231,53 @@ class GoogleAuthEndpointTests(APITestCase):
             format='json')
         self.assertEqual(res.status_code, 200)
         self.assertIn('token', res.data)
+
+    def _google_signup(self, **extra):
+        payload = {'credential': 'valid-token', 'mobile': '9123456780'}
+        payload.update(extra)
+        with _mock_claims(CLAIMS):
+            return self.client.post(URL, payload, format='json')
+
+    def test_new_identity_with_password_creates_usable_login(self):
+        res = self._google_signup(
+            full_name='Test Grower', last_name='Patil',
+            password='Str0ng!pass', confirm_password='Str0ng!pass')
+        self.assertEqual(res.status_code, 201)
+        user = User.objects.get()
+        self.assertTrue(user.check_password('Str0ng!pass'))
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(profile.full_name, 'Test Grower')
+        self.assertEqual(user.last_name, 'Patil')
+        self.assertEqual(user.email, 'grower@example.com')
+        self.assertEqual(GoogleAccount.objects.get(user=user).sub,
+                         'google-sub-123')
+
+    def test_new_identity_password_mismatch_rejected(self):
+        res = self._google_signup(
+            full_name='Test Grower', last_name='Patil',
+            password='Str0ng!pass', confirm_password='Other!pass1')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(User.objects.count(), 0)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
+
+    def test_new_identity_weak_password_rejected(self):
+        res = self._google_signup(
+            full_name='Test Grower', last_name='Patil',
+            password='weak', confirm_password='weak')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_new_identity_invalid_name_rejected(self):
+        res = self._google_signup(
+            full_name='Name123', last_name='Patil',
+            password='Str0ng!pass', confirm_password='Str0ng!pass')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_new_identity_without_password_stays_passwordless(self):
+        res = self._google_signup()
+        self.assertEqual(res.status_code, 201)
+        user = User.objects.get()
+        self.assertFalse(user.has_usable_password())

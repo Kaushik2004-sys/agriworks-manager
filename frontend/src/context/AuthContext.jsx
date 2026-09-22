@@ -191,8 +191,8 @@ export function AuthProvider({ children }) {
   // Google sign-in/sign-up: the backend verifies the GIS credential and
   // returns the normal session shape, so storage, heartbeat, guards and
   // logout all behave exactly like password login from here on.
-  async function googleLogin(credential, mobile) {
-    const data = await googleAuthUser(credential, mobile);
+  async function googleLogin(credential, mobile, extra) {
+    const data = await googleAuthUser(credential, mobile, extra);
     localStorage.setItem('agriworks_token', data.token);
     setToken(data.token);
     setUser({ username: data.username, email: data.email });
