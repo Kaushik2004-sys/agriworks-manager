@@ -939,8 +939,8 @@ textarea:focus-visible {
 
 /* ==========================================================================
    Desktop navbar polish (presentation only — no route/handler changes)
-   - Wide desktop (xxl+): one compact vertically-centered row, no wrapping.
-   - Below xxl: Bootstrap hamburger menu (secondary links live there too).
+   - Wide desktop (xl+): one compact vertically-centered row, no wrapping.
+   - Below xl: Bootstrap hamburger menu (secondary links live there too).
    ========================================================================== */
 
 /* Compact header: less tall than default Bootstrap navbar */
@@ -953,7 +953,7 @@ textarea:focus-visible {
 }
 
 /* Single-row, vertically centered, never wraps on wide desktop */
-@media (min-width: 1400px) {
+@media (min-width: 1200px) {
   .aw-topnav .navbar-collapse {
     flex-wrap: nowrap;
   }
@@ -1019,7 +1019,7 @@ textarea:focus-visible {
 }
 
 /* Collapsed (hamburger) menu: comfortable stacked list, no clipping */
-@media (max-width: 1399.98px) {
+@media (max-width: 1199.98px) {
   .aw-topnav .navbar-collapse.show .navbar-nav {
     gap: 0.25rem;
     padding: 0.5rem 0;

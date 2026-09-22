@@ -1,5 +1,5 @@
-// Top navbar: single clean row on wide desktop (xxl and up); hamburger menu
-// below that so tablet/narrow-desktop links never wrap onto a second row.
+// Top navbar: single clean row on desktop (xl and up); hamburger menu
+// below that so tablet/narrow widths never wrap links onto a second row.
 // Includes the language selector (English / Hindi / Marathi).
 import { useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -58,7 +58,7 @@ export default function AppNavbar() {
 
   return (
     <>
-    <nav className="navbar navbar-expand-xxl navbar-dark bg-success mb-3 sticky-top d-print-none aw-topnav">
+    <nav className="navbar navbar-expand-xl navbar-dark bg-success mb-3 sticky-top d-print-none aw-topnav">
       <div className="container aw-topnav-inner">
         <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/" onClick={close}>
           <img src="/logo.png" alt="AgriWorks logo" className="navbar-logo" />
@@ -92,7 +92,7 @@ export default function AppNavbar() {
           <div className="navbar-nav ms-auto aw-topnav-controls">
             <button
               type="button"
-              className="btn btn-outline-light btn-sm my-2 my-xxl-0 flex-shrink-0"
+              className="btn btn-outline-light btn-sm my-2 my-xl-0 flex-shrink-0"
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
               title={theme === 'dark' ? t('Switch to Light Mode') : t('Switch to Dark Mode')}
@@ -100,7 +100,7 @@ export default function AppNavbar() {
               <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
             </button>
             <select
-              className="form-select form-select-sm my-2 my-xxl-0 flex-shrink-0 aw-lang-select"
+              className="form-select form-select-sm my-2 my-xl-0 flex-shrink-0 aw-lang-select"
               value={lang}
               onChange={(e) => setLang(e.target.value)}
               aria-label={t('Language')}
@@ -113,12 +113,12 @@ export default function AppNavbar() {
               <>
                 <NavLink className={({ isActive }) => `nav-link flex-shrink-0${isActive ? ' active' : ''}`} to="/profile" onClick={close}>{t('Profile')}</NavLink>
                 <span className="navbar-text text-nowrap text-truncate aw-greeting">{t('Hi,')} {user.profile?.full_name || ''}</span>
-                <button className="btn btn-light btn-sm my-2 my-xxl-0 flex-shrink-0" onClick={handleLogout}>
+                <button className="btn btn-light btn-sm my-2 my-xl-0 flex-shrink-0" onClick={handleLogout}>
                   {t('Logout')}
                 </button>
               </>
             ) : (
-              <Link className="btn btn-light btn-sm my-2 my-xxl-0" to="/login" onClick={close}>{t('Login')}</Link>
+              <Link className="btn btn-light btn-sm my-2 my-xl-0" to="/login" onClick={close}>{t('Login')}</Link>
             )}
           </div>
         </div>
