@@ -36,6 +36,10 @@ export default function Footer() {
   // Login page, which shows no app-module navigation (those links would
   // only bounce a guest back to Login).
   const showOperationalLinks = !isSuperuser && pathname !== '/login';
+  // The Login page renders its own dedicated informational section, so
+  // the shared footer row is hidden there to avoid listing the links
+  // twice. Everywhere else the footer copy is unchanged.
+  const showInfoLinks = pathname !== '/login';
   const infoLinks = !isSuperuser
     ? INFO_LINKS
     : INFO_LINKS.filter((l) => l.to !== '/contact-support');
@@ -63,6 +67,7 @@ export default function Footer() {
             )}
           </div>
         </div>
+        {showInfoLinks && (
         <div className="footer-info-links d-flex flex-wrap justify-content-md-end mt-2">
           {infoLinks.map((l, i) => (
             <span key={l.to} className="text-nowrap">
@@ -77,6 +82,7 @@ export default function Footer() {
             </span>
           ))}
         </div>
+        )}
         <hr className="my-3 border-light" />
         <p className="text-center small mb-0">
           {t('© 2026 AgriWorks Manager. All Rights Reserved.')}

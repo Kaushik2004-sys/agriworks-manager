@@ -39,6 +39,18 @@ function LockIcon() {
   );
 }
 
+// Informational pages linked from the Login page (same routes/labels
+// as the shared footer, which hides its copy on /login).
+const INFO_LINKS = [
+  { to: '/about', label: 'About AgriWorks' },
+  { to: '/help-support', label: 'Help & Support' },
+  { to: '/faq', label: 'FAQ' },
+  { to: '/privacy', label: 'Privacy Policy' },
+  { to: '/terms', label: 'Terms & Conditions' },
+  { to: '/disclaimer', label: 'Disclaimer' },
+  { to: '/contact-support', label: 'Contact & Report Problem' },
+];
+
 export default function Login() {
   const { login, refreshUser, googleLogin } = useAuth();
   const { t } = useLanguage();
@@ -216,6 +228,18 @@ export default function Login() {
         <Link to="/signup" replace>{t('Create New Account')}</Link>
         <Link to="/forgot-password" replace>{t('Forgot Password?')}</Link>
       </div>
+      </div>
+
+      {/* Dedicated informational links for the Login page: secondary to
+          the form, separated by spacing + divider, wrapping naturally on
+          narrow screens. The shared footer hides its copy on /login so
+          this section is the only one. */}
+      <div className="aw-login-info">
+        {INFO_LINKS.map((l) => (
+          <Link key={l.to} to={l.to}>
+            {t(l.label)}
+          </Link>
+        ))}
       </div>
     </div>
   );

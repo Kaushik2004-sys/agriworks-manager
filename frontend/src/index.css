@@ -716,6 +716,32 @@ textarea:focus-visible {
   box-shadow: 0 2px 8px rgba(27, 67, 50, 0.08);
 }
 
+/* --- Login page informational links: dedicated secondary section ---
+   Sits below the auth card, visually separated by spacing + divider so
+   the form stays dominant. Centered, wraps naturally on narrow screens
+   (never forced onto one line, no horizontal scroll). Muted small
+   links with roomy line-height keep touch targets comfortable. */
+.aw-login-info {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--aw-card-border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 1rem;
+}
+.aw-login-info a {
+  color: var(--aw-text-soft);
+  font-size: 0.85rem;
+  line-height: 1.9;
+  text-decoration: none;
+  overflow-wrap: break-word;
+}
+.aw-login-info a:hover {
+  color: var(--aw-forest);
+  text-decoration: underline;
+}
+
 .aw-brand-row {
   display: flex;
   align-items: center;
