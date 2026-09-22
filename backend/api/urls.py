@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('health/', views.health_check, name='api-health'),
     path('login/', views.login_view, name='api-login'),
+    path('auth/google/', views.google_auth_view, name='api-google-auth'),
     path('logout/', views.logout_view, name='api-logout'),
     path('me/', views.me_view, name='api-me'),
     path('dashboard/', views.dashboard_view, name='api-dashboard'),

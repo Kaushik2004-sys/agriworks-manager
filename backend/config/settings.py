@@ -202,6 +202,10 @@ REST_FRAMEWORK = {
         # under both budgets.
         'register': '100/hour',
         'password_reset_confirm': '30/hour',
+        # Google Login (Phase 2): ID tokens cannot be brute-forced (only
+        # Google-issued JWTs verify), so 60/hour comfortably fits normal
+        # use while backstopping abuse of the endpoint.
+        'google': '60/hour',
     },
 }
 

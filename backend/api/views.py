@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
-from .throttles import LoginRateThrottle
+from .throttles import GoogleRateThrottle, LoginRateThrottle
 
 
 class IsSuperUser(BasePermission):
@@ -153,6 +153,161 @@ def login_view(request):
         'email': user.email,
         'message': 'Login successful.',
     })
+
+
+def _create_google_user(email, name, mobile):
+    """Create a password-less user + profile for a verified Google identity.
+
+    Username follows the existing registration convention (email prefix,
+    sanitized, suffixed until unique). The account gets an unusable
+    password (password login stays impossible), blank names fall back to
+    safe defaults, and no staff/superuser flags are ever set. Callers
+    must run this inside the same transaction that creates the
+    GoogleAccount link so concurrent requests stay exactly-once.
+    """
+    import re
+
+    from django.contrib.auth.models import User
+
+    from accounts.models import UserProfile
+
+    base = re.sub(r'[^\w.@+-]+', '_', email.split('@')[0][:140]) or 'user'
+    username = base
+    counter = 1
+    while User.objects.filter(username__iexact=username).exists():
+        counter += 1
+        username = f'{base}{counter}'
+    full_name = (name or '').strip()[:150] or base
+    user = User(username=username, email=email,
+                first_name=full_name[:30], last_name='')
+    user.set_unusable_password()
+    user.save()
+    UserProfile.objects.create(
+        user=user, full_name=full_name, company_name='', mobile=mobile)
+    return user
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([GoogleRateThrottle])
+def google_auth_view(request):
+    """Authenticate with a Google Identity Services ID token.
+
+    Request: {"credential": "<Google ID token>"} plus, for a Google
+    identity seen the first time, {"mobile": "<10-digit mobile>"}.
+    Only the server-verified token payload (sub, email, name) is
+    trusted - frontend-supplied identity fields are never accepted.
+    A verified `sub` already linked signs in; an unknown `sub` creates
+    exactly one password-less account (never auto-linked by email).
+    Success reuses the existing session architecture: rotated DRF
+    token, LoginHistory row, same response shape as password login.
+    """
+    import re
+
+    from django.contrib.auth.models import User
+    from django.core.exceptions import ImproperlyConfigured
+    from django.db import IntegrityError, transaction
+
+    from accounts.google_oauth import (
+        GoogleTokenVerificationError,
+        verify_google_id_token,
+    )
+    from accounts.models import GoogleAccount, LoginHistory, UserProfile
+    from .token_rotation import rotate_auth_token
+
+    data = request.data if isinstance(request.data, dict) else {}
+    credential = data.get('credential') or ''
+    if not isinstance(credential, str) or not credential.strip():
+        return Response(
+            {'error': 'Google credential is required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        identity = verify_google_id_token(credential.strip())
+    except ImproperlyConfigured:
+        return Response(
+            {'error': 'Google authentication is unavailable.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    except GoogleTokenVerificationError:
+        return Response(
+            {'error': 'Invalid Google credential.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    sub = identity['sub']
+    email = identity['email'].strip().lower()
+    created = False
+    try:
+        user = GoogleAccount.objects.select_related('user').get(
+            sub=sub).user
+    except GoogleAccount.DoesNotExist:
+        user = None
+    if user is None:
+        # Unknown Google identity: explicit mobile is required (Google
+        # never provides one) and follows the registration M1/M2 rules.
+        mobile = data.get('mobile') or ''
+        mobile = mobile.strip() if isinstance(mobile, str) else ''
+        if not re.fullmatch(r'[6-9]\d{9}', mobile or ''):
+            return Response(
+                {'error': 'Mobile Number must be 10 digits.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if UserProfile.objects.filter(mobile=mobile).exists():
+            return Response(
+                {'error': 'This mobile number cannot be used.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Never attach by email alone: AgriWorks never verified that the
+        # existing password account belongs to this Google identity, so
+        # linking must happen through the authenticated linking flow.
+        if User.objects.filter(email__iexact=email).exists():
+            return Response(
+                {'error': 'This Google account is not linked to your '
+                          'AgriWorks account. Log in with your password '
+                          'to link it.',
+                 'code': 'google_not_linked'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            with transaction.atomic():
+                existing = GoogleAccount.objects.select_related(
+                    'user').filter(sub=sub).first()
+                if existing is not None:
+                    user = existing.user
+                else:
+                    user = _create_google_user(
+                        email, identity.get('name', ''), mobile)
+                    GoogleAccount.objects.create(
+                        user=user, sub=sub, email=email)
+                    created = True
+        except IntegrityError:
+            # A concurrent request won the race: resolve the winner's
+            # link instead of creating duplicates.
+            try:
+                user = GoogleAccount.objects.select_related(
+                    'user').get(sub=sub).user
+            except GoogleAccount.DoesNotExist:
+                return Response(
+                    {'error': 'Google authentication failed. '
+                              'Please try again.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+    token = rotate_auth_token(user)
+    LoginHistory.objects.create(
+        user=user,
+        status='Successful',
+        ip_address=_client_ip(request),
+        user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:255],
+    )
+    return Response({
+        'token': token.key,
+        'username': user.username,
+        'email': user.email,
+        'created': created,
+        'message': 'Login successful.',
+    }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 @api_view(['POST'])

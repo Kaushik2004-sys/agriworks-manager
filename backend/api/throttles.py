@@ -31,3 +31,7 @@ class RegisterRateThrottle(_IPRateThrottle):
 
 class PasswordResetConfirmRateThrottle(_IPRateThrottle):
     scope = 'password_reset_confirm'
+
+
+class GoogleRateThrottle(_IPRateThrottle):
+    scope = 'google'
