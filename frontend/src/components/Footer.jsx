@@ -33,9 +33,9 @@ export default function Footer() {
   const isSuperuser = !!user?.is_superuser;
   // Superusers never see operational links or Contact & Report Problem,
   // on any page. Normal users always keep the full footer, except the
-  // Login page, which shows no app-module navigation (those links would
-  // only bounce a guest back to Login).
-  const showOperationalLinks = !isSuperuser && pathname !== '/login';
+  // Login and Signup pages, which show no app-module navigation (those
+  // links would only bounce a guest back to Login).
+  const showOperationalLinks = !isSuperuser && pathname !== '/login' && pathname !== '/signup';
   const infoLinks = !isSuperuser
     ? INFO_LINKS
     : INFO_LINKS.filter((l) => l.to !== '/contact-support');
