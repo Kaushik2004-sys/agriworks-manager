@@ -6,6 +6,18 @@ AgriWorks Manager is a web-based agricultural service management system designed
 
 Developed as a B.Sc. IT academic project.
 
+Live Frontend: [https://agriworks-manager-frontend.vercel.app/](https://agriworks-manager-frontend.vercel.app/)
+
+## Live Information Pages
+
+- [एग्रीवर्क्स के बारे में](https://agriworks-manager-frontend.vercel.app/about)
+- [सहायता व समर्थन](https://agriworks-manager-frontend.vercel.app/help-support)
+- [अक्सर पूछे जाने वाले प्रश्न](https://agriworks-manager-frontend.vercel.app/faq)
+- [गोपनीयता नीति](https://agriworks-manager-frontend.vercel.app/privacy)
+- [नियम व शर्तें](https://agriworks-manager-frontend.vercel.app/terms)
+- [अस्वीकरण](https://agriworks-manager-frontend.vercel.app/disclaimer)
+- [संपर्क व समस्या रिपोर्ट](https://agriworks-manager-frontend.vercel.app/contact-support)
+
 ## Problem Statement
 
 Small agricultural service providers typically depend on paper/notebook-based records, which causes:
@@ -247,7 +259,7 @@ Confirmed implementation details (not a hacker-proof claim):
 
 ## Project Status
 
-Academic/college project that has been implemented and deployed as a working web application. Developed as a B.Sc. IT academic project; presented as coursework, not as a commercial product.
+Academic/college project under development and finalization. The frontend is deployed on Vercel, with the backend and database deployed separately for the hosted application. Developed as a B.Sc. IT academic project; presented as coursework, not as a commercial product.
 
 ## Future Enhancements
 
