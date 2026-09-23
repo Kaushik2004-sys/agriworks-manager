@@ -2,11 +2,50 @@
 
 ## Project Overview
 
-AgriWorks Manager is a web-based agricultural service management system designed for tractor owners, irrigation service providers, and agricultural contractors. It manages farmers, agricultural work, billing, payments, expenses, reports, and related records from one central place.
+AgriWorks Manager is a web-based agricultural service management system for tractor owners, irrigation service providers, and agricultural contractors. It replaces paper/notebook records with structured digital records for farmers, agricultural work, billing, payments, expenses, and business reports.
 
 Developed as a B.Sc. IT academic project.
 
+## Live Application
+
 Live Frontend: [https://agriworks-manager-frontend.vercel.app/](https://agriworks-manager-frontend.vercel.app/)
+
+## Key Features
+
+- User registration and login (email, username, or registered 10-digit mobile number), logout
+- 24-hour authentication token expiry with single active session per account
+- Email-based password reset (single-use link) and password change
+- Farmer management (add, view, edit, delete, search)
+- Agricultural work management (Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, Land Leveling)
+- Bill generation from unbilled work records, with automatic Unpaid / Partial / Paid status
+- Payment tracking with automatic pending-amount calculation (overpayment is rejected)
+- Expense management (Diesel, Maintenance, Driver Wages, Other)
+- Dashboard with business totals and recent activity
+- Reports (work, billing, payments, pending payments, expenses, business performance) with filters and CSV export
+- Problem reporting with screenshot upload, plus admin problem-report management
+- Admin functionality (system overview, registered users, login history) for superusers
+- English / Hindi / Marathi language support
+- Responsive Bootstrap UI with Light / Dark mode
+- Informational pages (About, Help & Support, FAQ, Privacy Policy, Terms & Conditions, Disclaimer, Contact & Report Problem)
+
+## Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React.js, Bootstrap, Vite, Axios, React Router |
+| Backend | Python, Django, Django REST Framework |
+| Database | MySQL |
+| Hosting | Vercel, Render, Aiven |
+
+## System Architecture
+
+```text
+React.js Frontend
+        ↓  Token-authenticated JSON API (Axios)
+Django REST API
+        ↓  Django ORM
+MySQL Database
+```
 
 ## Live Information Pages
 
@@ -18,147 +57,28 @@ Live Frontend: [https://agriworks-manager-frontend.vercel.app/](https://agriwork
 - [अस्वीकरण](https://agriworks-manager-frontend.vercel.app/disclaimer)
 - [संपर्क व समस्या रिपोर्ट](https://agriworks-manager-frontend.vercel.app/contact-support)
 
-## Problem Statement
-
-Small agricultural service providers typically depend on paper/notebook-based records, which causes:
-
-- Difficulty tracking agricultural work across farmers and dates
-- Calculation mistakes in bills and pending amounts
-- Pending payments that are hard to follow up
-- Expense tracking spread across notebooks
-- Misplaced or damaged records
-- Difficulty generating business reports
-
-AgriWorks Manager replaces the notebook with structured digital records, automatic calculations, and reports. It is an academic project and is not presented as a commercially deployed product.
-
-## Main Features
-
-- User registration and login (email, username, or registered 10-digit mobile number), logout
-- Authenticated sessions expire automatically after 24 hours
-- Password reset via email link (Django reset token, single-use 24-hour link; existing sessions are invalidated and re-login is required) and password change
-- Farmer management (add, view, edit, delete, search)
-- Agricultural work management, linked to one farmer per record
-- Supported work types: Ploughing, Rotavator, Cultivation, Harvesting, Irrigation, Other, Land Leveling
-- Automatic bill generation from unbilled work records
-- Bill status: Unpaid, Partial, Paid (recalculated automatically)
-- Generated bill totals are locked after bill creation and cannot be changed
-- Payment recording with farmer-first selection: Farmer → Work/Bill → Payment
-- Payment methods: Cash, UPI, Bank Transfer, Cheque, Other
-- Expense management (Diesel, Maintenance, Driver Wages, Other)
-- Dashboard with totals and recent activity, plus focused detail views
-- Reports (work, billing, payments, pending payments, expenses, business performance) with filters, CSV export and print layout
-- Problem reporting / support with screenshot upload
-- My Reports with Pending / In Progress / Resolved status visibility
-- Admin (superuser) functionality: system overview, registered-user list with search, problem-report management, login-history viewing with search
-- Responsive Bootstrap UI for mobile, tablet and desktop
-- Multi-language support: English, Hindi, Marathi
-- Light and Dark mode
-- Informational pages: About, Help & Support, FAQ, Privacy Policy, Terms & Conditions, Disclaimer, Contact & Report Problem
-
-## Technology Stack
-
-Frontend:
-
-- React.js
-- Bootstrap
-- Vite
-- Axios
-- React Router
-
-Backend:
-
-- Python
-- Django
-- Django REST Framework
-
-Database:
-
-- MySQL (current development database: MySQL 8.4)
-
-## System Architecture
-
-```text
-React frontend (Vite)
-        ↓  Token-authenticated JSON API (Axios)
-Django REST API
-        ↓  Django ORM (mysqlclient)
-MySQL database
-```
-
-The frontend calls the Django REST API with a per-login token (`Token <key>` in the `Authorization` header). The API is namespaced under `/api/` (for example, `/api/health/`, `/api/farmers/`, `/api/bills/`).
-
-## Deployment
-
-The application is deployed as a working web application:
-
-- Frontend: static hosting (Vercel)
-- Backend: Django served with Gunicorn, static files handled by WhiteNoise (Render)
-- Database: managed MySQL (Aiven)
-
-All secrets and environment-specific values (database credentials, `DJANGO_SECRET_KEY`, SMTP credentials, allowed hosts/CORS origins) are supplied through the hosting environments, never committed to the repository. The local setup below remains valid for development.
-
 ## Project Structure
 
 ```text
-AgriWorks Manager/
+agriworks-manager/
 ├── backend/
-│   ├── accounts/        # registration, login, profile, password reset, login history
-│   ├── api/             # health, dashboard, reports, admin overview, shared tests
-│   ├── billing/         # bills
-│   ├── expenses/        # expenses
-│   ├── farmers/         # farmers
-│   ├── payments/        # payments
-│   ├── support/         # problem reports
-│   ├── works/           # agricultural work records
-│   ├── config/          # settings, root URLs, WSGI
-│   ├── manage.py
-│   └── requirements.txt
+│   ├── accounts/
+│   ├── api/
+│   ├── billing/
+│   ├── expenses/
+│   ├── farmers/
+│   ├── payments/
+│   ├── support/
+│   ├── works/
+│   └── config/
 ├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── i18n/        # English, Hindi, Marathi translations
-│   │   ├── pages/
-│   │   ├── services/    # API helpers per module
-│   │   └── utils/
-│   ├── package.json
-│   └── vite.config.js
+│   └── src/
 └── README.md
 ```
 
-## Important Business Rules
+## Local Setup
 
-Confirmed by the current implementation:
-
-- Users can access only their own applicable records (all business queries are scoped to the logged-in user; admin/superuser-only views are restricted to superusers).
-- Bill total must be greater than 0.
-- A generated bill total cannot be changed after creation (same-value resubmits are allowed).
-- Bill total cannot become lower than the amount already paid.
-- Pending amount cannot become negative.
-- Overpayment (payment above the pending amount) is rejected.
-- Bill status follows payment state: no payment → Unpaid, partial → Partial, fully paid → Paid.
-- A farmer with work records, a work with a generated bill, and a bill with payments cannot be deleted (HTTP 400); records without such links delete normally.
-- The same farmer, work type and work date cannot be recorded twice.
-- Login, registration and password-reset endpoints are rate-limited per IP; authenticated requests are unaffected.
-- Problem reports are scoped to the reporting user; only superusers can change status or delete reports.
-- Payment date cannot be in the future or before the bill date.
-
-## Installation / Local Setup (Windows)
-
-### 1. Clone the repository
-
-Use the repository's normal GitHub clone process.
-
-### 2. MySQL database
-
-Install MySQL 8.x and create the database:
-
-```sql
-CREATE DATABASE agriworks_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 3. Backend setup
+### Backend
 
 ```bash
 cd backend
@@ -167,7 +87,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Configure `backend/.env` (see Environment Variables below), then:
+Configure `backend/.env`, then:
 
 ```bash
 python manage.py migrate
@@ -175,9 +95,13 @@ python manage.py createsuperuser
 python manage.py runserver 0.0.0.0:8000
 ```
 
-The backend API will be available at `http://127.0.0.1:8000/api/`. Verify it at `http://127.0.0.1:8000/api/health/` (it reports database connectivity).
+The backend API will be available at `http://127.0.0.1:8000/api/`. MySQL 8.x is required — create the database first:
 
-### 4. Frontend setup
+```sql
+CREATE DATABASE agriworks_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### Frontend
 
 ```bash
 cd frontend
@@ -185,87 +109,10 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173` (Vite may bind IPv6 localhost on some machines; use `localhost` rather than `127.0.0.1` for the dev URL if needed).
+The frontend will be available at `http://localhost:5173`.
 
-## Environment Variables
-
-Copy the examples and fill real values. Never commit `.env` files (both are git-ignored).
-
-- `backend/.env.example` → `backend/.env`
-- `frontend/.env.example` → `frontend/.env`
-
-Database configuration (`backend/.env`):
-
-```text
-DB_NAME=agriworks_db
-DB_USER=root
-DB_PASSWORD=your-mysql-password
-DB_HOST=127.0.0.1
-DB_PORT=3306
-```
-
-Frontend API configuration (`frontend/.env`):
-
-```text
-VITE_API_URL=http://127.0.0.1:8000/api
-```
-
-Optional SMTP / password-reset configuration (`backend/.env`; without it, reset emails go to the Django console instead of a real inbox):
-
-```text
-EMAIL_BACKEND=smtp
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your-gmail@example.com
-EMAIL_HOST_PASSWORD=your-gmail-app-password
-DEFAULT_FROM_EMAIL=your-gmail@example.com
-```
-
-## API Overview
-
-Major areas under `/api/` (all except registration/login/password-reset require authentication):
-
-- `health/` — service and database status
-- `register/`, `login/`, `logout/`, `me/`, `profile/`, `change-password/`
-- `password-reset/request/`, `password-reset/confirm/`
-- `farmers/`, `works/`, `bills/`, `payments/`, `expenses/`
-- `problem-reports/` (own reports for users; full management for superusers)
-- `dashboard/`, `reports/`
-- `admin/overview/`, `admin/login-history/` (superusers only)
-
-## Testing
-
-Latest verified results against MySQL:
-
-- Django `manage.py check` → PASS
-- Backend test suite → **230/230 PASS**
-- Frontend lint → 0 errors
-- Frontend build → successful
-- Migration consistency (`makemigrations --check`, unapplied migrations) → PASS
-
-These are the current automated checks passing; they are not a claim of absolute production readiness.
-
-## Security / Data Safety
-
-Confirmed implementation details (not a hacker-proof claim):
-
-- Token authentication; passwords are stored hashed using Django's default password hasher and are never returned by the API.
-- Business data is scoped per user at the queryset level; admin endpoints require superuser status.
-- Password-reset links are single-use, expire after 24 hours, and are delivered only to the registered email address (never in API responses). A successful reset invalidates all existing authentication tokens, so the user must log in again (no automatic login). SMS/OTP-based reset is not used.
-- Problem-report screenshots are content-validated images served only to the owning user or an admin (never anonymous guessable URLs).
-- Production requires a real `DJANGO_SECRET_KEY` from the environment (the dev fallback is refused at boot when `DJANGO_DEBUG` is not `True`); HTTPS/HSTS/secure cookies apply automatically outside DEBUG.
-- Keep `SECRET_KEY`, database passwords, Gmail App Passwords and API tokens out of source control (`.env` files are ignored by Git).
+Use `backend/.env.example` and `frontend/.env.example` as templates. Never commit real secrets.
 
 ## Project Status
 
-Academic/college project under development and finalization. The frontend is deployed on Vercel, with the backend and database deployed separately for the hosted application. Developed as a B.Sc. IT academic project; presented as coursework, not as a commercial product.
-
-## Future Enhancements
-
-Ideas only, not current features:
-
-- Automated backups
-- Advanced analytics
-- Notifications
-- Additional agricultural service features
+AgriWorks Manager is an implemented and deployed B.Sc. IT academic project. The frontend is hosted on Vercel, the backend on Render, and the database on Aiven MySQL.
