@@ -15,7 +15,7 @@ import { PAYMENT_METHODS, createPayment, deletePayment, listPayments } from '../
 import { formatRupees } from '../utils/formatRupees';
 
 export default function Payments() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [searchParams] = useSearchParams();
   const [farmers, setFarmers] = useState([]);
   const [farmerSearch, setFarmerSearch] = useState('');
@@ -50,15 +50,19 @@ export default function Payments() {
     if (!value) return '';
     const d = new Date(`${value}T00:00:00`);
     if (Number.isNaN(d.getTime())) return value;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    // Localized like the rest of the UI: English keeps the existing
+    // en-GB short form; Hindi/Marathi use the full month name in Devanagari.
+    const locale = lang === 'hi' ? 'hi-IN' : lang === 'mr' ? 'mr-IN' : 'en-GB';
+    const month = lang === 'en' ? 'short' : 'long';
+    return d.toLocaleDateString(locale, { day: 'numeric', month, year: 'numeric' });
   }
 
   function billLabel(b) {
     const area = worksMap[b.work]?.area;
-    const parts = [b.work_type || `Bill #${b.id}`, formatWorkDate(b.work_date)];
-    if (area) parts.push(`${area} Acres`);
-    parts.push(`Total ₹${formatRupees(b.total_amount)}`);
-    parts.push(b.status === 'Paid' ? 'Paid' : `Pending ₹${formatRupees(b.pending_amount)}`);
+    const parts = [t(b.work_type) || `Bill #${b.id}`, formatWorkDate(b.work_date)];
+    if (area) parts.push(`${area} ${t('Acres')}`);
+    parts.push(`${t('Total')} ₹${formatRupees(b.total_amount)}`);
+    parts.push(b.status === 'Paid' ? t('Paid') : `${t('Pending')} ₹${formatRupees(b.pending_amount)}`);
     return parts.filter(Boolean).join(' | ');
   }
 
