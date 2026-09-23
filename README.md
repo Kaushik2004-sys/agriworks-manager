@@ -95,7 +95,7 @@ python manage.py createsuperuser
 python manage.py runserver 0.0.0.0:8000
 ```
 
-The backend API will be available at `http://127.0.0.1:8000/api/`. MySQL 8.x is required — create the database first:
+MySQL 8.x is required — create the database first:
 
 ```sql
 CREATE DATABASE agriworks_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
