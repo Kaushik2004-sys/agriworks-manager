@@ -49,13 +49,13 @@ MySQL Database
 
 ## Live Information Pages
 
-- [एग्रीवर्क्स के बारे में](https://agriworks-manager-frontend.vercel.app/about)
-- [सहायता व समर्थन](https://agriworks-manager-frontend.vercel.app/help-support)
-- [अक्सर पूछे जाने वाले प्रश्न](https://agriworks-manager-frontend.vercel.app/faq)
-- [गोपनीयता नीति](https://agriworks-manager-frontend.vercel.app/privacy)
-- [नियम व शर्तें](https://agriworks-manager-frontend.vercel.app/terms)
-- [अस्वीकरण](https://agriworks-manager-frontend.vercel.app/disclaimer)
-- [संपर्क व समस्या रिपोर्ट](https://agriworks-manager-frontend.vercel.app/contact-support)
+- [About AgriWorks](https://agriworks-manager-frontend.vercel.app/about)
+- [Help & Support](https://agriworks-manager-frontend.vercel.app/help-support)
+- [Frequently Asked Questions](https://agriworks-manager-frontend.vercel.app/faq)
+- [Privacy Policy](https://agriworks-manager-frontend.vercel.app/privacy)
+- [Terms & Conditions](https://agriworks-manager-frontend.vercel.app/terms)
+- [Disclaimer](https://agriworks-manager-frontend.vercel.app/disclaimer)
+- [Contact & Problem Report](https://agriworks-manager-frontend.vercel.app/contact-support)
 
 ## Project Structure
 
