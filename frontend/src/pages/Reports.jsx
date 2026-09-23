@@ -37,7 +37,7 @@ const COLUMN_LABELS = {
   date: 'Date', area: 'Area', amount: 'Amount', work: 'Work',
   hours: 'Hours', minutes: 'Minutes', hourly_rate: 'Rate per Hour', rate_per_acre: 'Rate per Acre',
   bill_date: 'Bill Date', total: 'Total', paid: 'Paid', pending: 'Pending',
-  status: 'Status', bill_id: 'Bill ID', mobile: 'Mobile',
+  status: 'Status', bill_id: 'Bill ID', mobile: 'Mobile', method: 'Method',
   expense_type: 'Expense Type', description: 'Description',
   count: 'Count', total_area: 'Total Area', total_amount: 'Total Amount',
   total_pending: 'Total Pending',
@@ -312,7 +312,7 @@ export default function Reports() {
                     {records.map((r, i) => (
                       <tr key={i}>{columns.map((c) => {
                         const cell = MONEY_COLUMNS.includes(c) ? moneyText(r[c]) || String(r[c] ?? '') : String(r[c] ?? '');
-                        return <td key={c} data-label={t(COLUMN_LABELS[c] || c)}>{(c === 'work_type' || c === 'work') ? t(String(r[c] ?? '')) : cell}</td>;
+                        return <td key={c} data-label={t(COLUMN_LABELS[c] || c)}>{(c === 'work_type' || c === 'work' || c === 'method' || c === 'status') ? t(String(r[c] ?? '')) : cell}</td>;
                       })}</tr>
                     ))}
                   </tbody>
